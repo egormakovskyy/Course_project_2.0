@@ -60,7 +60,7 @@ namespace ElevatorSim
                     CurrentFloor = 1,
                     TargetFloor = Math.Min(totalFloors, 2) // Чтобы не выходить за пределы этажей
                 };
-
+                
                 _people.Add(person);
                 AddLog($"Добавлен человек ID {person.Id}: вес {person.Weight}кг, с этажа {person.CurrentFloor} на этаж {person.TargetFloor}");
                 UpdateSummary();
@@ -94,7 +94,7 @@ namespace ElevatorSim
             var totalWeight = _people.Sum(p => p.Weight);
             var upCount = _people.Count(p => p.Direction == "Вверх");
             var downCount = _people.Count(p => p.Direction == "Вниз");
-
+            
             SummaryTextBlock.Text = $"Всего людей: {_people.Count}\n" +
                                    $"Общий вес: {totalWeight} кг\n" +
                                    $"Хотят подняться: {upCount}\n" +
