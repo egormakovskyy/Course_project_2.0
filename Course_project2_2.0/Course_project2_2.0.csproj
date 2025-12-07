@@ -55,6 +55,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Page Include="CreatePersonWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="InitializationWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -69,6 +72,10 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="CreatePersonWindow.xaml.cs">
+      <DependentUpon>CreatePersonWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Elevator.cs" />
     <Compile Include="InitializationWindow.xaml.cs">
       <DependentUpon>InitializationWindow.xaml</DependentUpon>
     </Compile>
@@ -81,6 +88,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Person.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>

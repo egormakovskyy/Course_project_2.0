@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using System.Linq;
 using System.Collections.Generic;
+using ElevatorSim.Models;
 
 namespace ElevatorSim
 {
@@ -19,92 +20,25 @@ namespace ElevatorSim
             public ObservableCollection<InitializationWindow.Person> People { get; set; }
         }
 
-        // Класс человека в системе
-        public class PersonInSystem
-        {
-            public int Id { get; set; }
-            public double Weight { get; set; }
-            public int CurrentFloor { get; set; }
-            public int TargetFloor { get; set; }
-            public PersonState State { get; set; }
-            public string Status => GetStatus();
-
-            private string GetStatus()
-            {
-                switch (State)
-                {
-                    case PersonState.Waiting:
-                        return $"Ожидает на {CurrentFloor} этаже";
-                    case PersonState.InElevator:
-                        return $"В лифте → этаж {TargetFloor}";
-                    case PersonState.Delivered:
-                        return $"Доставлен на {TargetFloor} этаж";
-                    default:
-                        return "Неизвестно";
-                }
-            }
-        }
-
-        public enum PersonState
-        {
-            Waiting,      // Ожидает лифт
-            InElevator,   // В лифте
-            Delivered     // Доставлен
-        }
-
-        // Класс лифта
-        public class Elevator
-        {
-            public int CurrentFloor { get; set; }
-            public ElevatorState State { get; set; }
-            public Direction CurrentDirection { get; set; }
-            public List<int> TargetFloors { get; set; } = new List<int>();
-            public List<PersonInSystem> PeopleInside { get; set; } = new List<PersonInSystem>();
-            public double CurrentWeight
-            {
-                get
-                {
-                    double total = 0;
-                    foreach (var person in PeopleInside)
-                    {
-                        total += person.Weight;
-                    }
-                    return total;
-                }
-            }
-            public bool IsOverloaded => CurrentWeight > 400;
-        }
-
-        public enum ElevatorState
-        {
-            Idle,         // Ожидание
-            MovingUp,     // Движение вверх
-            MovingDown,   // Движение вниз
-            DoorsOpen,    // Двери открыты
-            Overloaded    // Перегрузка
-        }
-
-        public enum Direction
-        {
-            Up,
-            Down,
-            None
-        }
-
         private InitializationData _initData;
-        private ObservableCollection<PersonInSystem> _allPeople = new ObservableCollection<PersonInSystem>();
+        private ObservableCollection<Person> _allPeople = new ObservableCollection<Person>();
+        private List<Person> _peopleToRemove = new List<Person>();
         private Elevator _elevator = new Elevator();
         private DispatcherTimer _simulationTimer;
+        private DispatcherTimer _cleanupTimer;
         private int _currentTime = 0;
         private int _transportedCount = 0;
         private bool _isPaused = false;
+        private int _nextPersonId = 1;
+        private bool _systemStopped = false;
 
         // Визуальные элементы
         private List<Border> _floorVisuals = new List<Border>();
         private List<TextBlock> _floorTexts = new List<TextBlock>();
-        private List<TextBlock> _peopleTexts = new List<TextBlock>();
         private Border _elevatorVisual;
         private TextBlock _elevatorPeopleText;
+        private TextBox _logTextBox;
+        private ListView _peopleListView;
 
         // Конструктор с данными
         public MainWindow(InitializationData initData)
@@ -113,7 +47,7 @@ namespace ElevatorSim
             _initData = initData;
             InitializeSystem();
             CreateVisualInterface();
-            InitializeTimer();
+            InitializeTimers();
         }
 
         // Инициализация системы
@@ -126,11 +60,12 @@ namespace ElevatorSim
             // Конвертируем людей из InitializationWindow в систему
             foreach (var person in _initData.People)
             {
-                _allPeople.Add(new PersonInSystem
+                _allPeople.Add(new Person
                 {
-                    Id = person.Id,
+                    Id = _nextPersonId++,
                     Weight = person.Weight,
                     CurrentFloor = person.CurrentFloor,
+                    StartFloor = person.CurrentFloor,
                     TargetFloor = person.TargetFloor,
                     State = PersonState.Waiting
                 });
@@ -140,22 +75,78 @@ namespace ElevatorSim
             UpdateInfoPanel();
         }
 
+        // Публичный метод для добавления нового человека из других окон
+        public void AddNewPerson(Person person)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _allPeople.Add(person);
+                UpdateStatus($"Создан новый человек ID {person.Id} на этаже {person.CurrentFloor}");
+                UpdateInfoPanel();
+            });
+        }
+
+        // Инициализация таймеров
+        private void InitializeTimers()
+        {
+            _simulationTimer = new DispatcherTimer();
+            _simulationTimer.Interval = TimeSpan.FromSeconds(1);
+            _simulationTimer.Tick += SimulationTimer_Tick;
+
+            _cleanupTimer = new DispatcherTimer();
+            _cleanupTimer.Interval = TimeSpan.FromSeconds(1);
+            _cleanupTimer.Tick += CleanupTimer_Tick;
+        }
+
+        // Таймер очистки доставленных людей
+        private void CleanupTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                if (_systemStopped) return;
+
+                var now = DateTime.Now;
+                var peopleToRemoveNow = new List<Person>();
+
+                foreach (var person in _peopleToRemove)
+                {
+                    if ((now - person.RemovalTime).TotalSeconds >= 5)
+                    {
+                        peopleToRemoveNow.Add(person);
+                    }
+                }
+
+                foreach (var person in peopleToRemoveNow)
+                {
+                    _peopleToRemove.Remove(person);
+                }
+
+                foreach (var person in peopleToRemoveNow)
+                {
+                    _allPeople.Remove(person);
+                    AddLog($"Человек ID {person.Id} удален из системы");
+                }
+
+                UpdateInfoPanel();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка в CleanupTimer: {ex.Message}");
+            }
+        }
+
         // Создание визуального интерфейса
         private void CreateVisualInterface()
         {
             MainContentGrid.Children.Clear();
             _floorVisuals.Clear();
             _floorTexts.Clear();
-            _peopleTexts.Clear();
 
-            // Создаем сетку для этажей
             var floorsGrid = new Grid();
-
-            // 2 колонки: этажи + информация
             floorsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             floorsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
 
-            // Панель для этажей (левая колонка)
+            // Панель этажей
             var floorsStack = new StackPanel
             {
                 Orientation = Orientation.Vertical,
@@ -163,10 +154,8 @@ namespace ElevatorSim
                 Margin = new Thickness(20)
             };
 
-            // Создаем визуализацию для каждого этажа (сверху вниз)
             for (int floorNum = _initData.TotalFloors; floorNum >= 1; floorNum--)
             {
-                // Контейнер для этажа
                 var floorContainer = new Border
                 {
                     BorderBrush = Brushes.Gray,
@@ -174,59 +163,37 @@ namespace ElevatorSim
                     Margin = new Thickness(0, 5, 0, 5),
                     Padding = new Thickness(10),
                     CornerRadius = new CornerRadius(5),
-                    Width = 300
+                    Width = 250,
+                    Height = 40
                 };
 
-                // Сетка внутри контейнера
-                var floorGrid = new Grid();
-                floorGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                floorGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                // Текст этажа
                 var floorText = new TextBlock
                 {
                     Text = $"Этаж {floorNum}",
                     FontSize = 16,
                     FontWeight = FontWeights.Normal,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-
-                // Текст людей на этаже
-                var peopleText = new TextBlock
-                {
-                    Text = "",
-                    FontSize = 14,
-                    FontWeight = FontWeights.Normal,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(10, 0, 0, 0),
-                    Foreground = Brushes.DarkBlue
+                    HorizontalAlignment = HorizontalAlignment.Center
                 };
 
-                Grid.SetColumn(floorText, 0);
-                Grid.SetColumn(peopleText, 1);
-                floorGrid.Children.Add(floorText);
-                floorGrid.Children.Add(peopleText);
-
-                floorContainer.Child = floorGrid;
+                floorContainer.Child = floorText;
                 floorsStack.Children.Add(floorContainer);
 
-                // Сохраняем ссылки
                 _floorVisuals.Add(floorContainer);
                 _floorTexts.Add(floorText);
-                _peopleTexts.Add(peopleText);
             }
 
             Grid.SetColumn(floorsStack, 0);
             floorsGrid.Children.Add(floorsStack);
 
-            // Панель информации (правая колонка)
+            // Панель информации
             var infoStack = new StackPanel
             {
                 Margin = new Thickness(20),
                 Orientation = Orientation.Vertical
             };
 
-            // Визуализация лифта
+            // Лифт
             var elevatorContainer = new Border
             {
                 BorderBrush = Brushes.DarkBlue,
@@ -265,7 +232,6 @@ namespace ElevatorSim
 
             elevatorContainer.Child = elevatorGrid;
             _elevatorVisual = elevatorContainer;
-
             infoStack.Children.Add(elevatorContainer);
 
             // Список людей
@@ -278,9 +244,9 @@ namespace ElevatorSim
             };
             infoStack.Children.Add(peopleTitle);
 
-            var peopleList = new ListView
+            _peopleListView = new ListView
             {
-                Height = 300,
+                Height = 250,
                 Margin = new Thickness(0, 0, 0, 10)
             };
 
@@ -301,12 +267,12 @@ namespace ElevatorSim
             {
                 Header = "Статус",
                 DisplayMemberBinding = new System.Windows.Data.Binding("Status"),
-                Width = 200
+                Width = 250
             });
 
-            peopleList.View = gridView;
-            peopleList.ItemsSource = _allPeople;
-            infoStack.Children.Add(peopleList);
+            _peopleListView.View = gridView;
+            _peopleListView.ItemsSource = _allPeople;
+            infoStack.Children.Add(_peopleListView);
 
             // Лог событий
             var logTitle = new TextBlock
@@ -318,30 +284,21 @@ namespace ElevatorSim
             };
             infoStack.Children.Add(logTitle);
 
-            var logTextBox = new TextBox
+            _logTextBox = new TextBox
             {
-                Height = 150,
+                Height = 120,
                 IsReadOnly = true,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 12
             };
-            infoStack.Children.Add(logTextBox);
+            infoStack.Children.Add(_logTextBox);
 
             Grid.SetColumn(infoStack, 1);
             floorsGrid.Children.Add(infoStack);
-
             MainContentGrid.Children.Add(floorsGrid);
 
             UpdateVisuals();
-        }
-
-        // Инициализация таймера
-        private void InitializeTimer()
-        {
-            _simulationTimer = new DispatcherTimer();
-            _simulationTimer.Interval = TimeSpan.FromSeconds(1);
-            _simulationTimer.Tick += SimulationTimer_Tick;
         }
 
         // Обновление визуализации
@@ -353,7 +310,6 @@ namespace ElevatorSim
                 int floorNumber = _initData.TotalFloors - i; // Инвертируем порядок
                 var floorContainer = _floorVisuals[i];
                 var floorText = _floorTexts[i];
-                var peopleText = _peopleTexts[i];
 
                 // Подсвечиваем текущий этаж лифта
                 if (floorNumber == _elevator.CurrentFloor)
@@ -361,36 +317,14 @@ namespace ElevatorSim
                     floorContainer.Background = Brushes.LightCoral;
                     floorText.FontWeight = FontWeights.Bold;
                     floorText.Text = $"Этаж {floorNumber} [ЛИФТ]";
+                    floorText.Foreground = Brushes.Red;
                 }
                 else
                 {
                     floorContainer.Background = Brushes.White;
                     floorText.FontWeight = FontWeights.Normal;
                     floorText.Text = $"Этаж {floorNumber}";
-                }
-
-                // Показываем людей на этаже
-                var peopleOnFloor = new List<PersonInSystem>();
-                foreach (var person in _allPeople)
-                {
-                    if (person.State == PersonState.Waiting && person.CurrentFloor == floorNumber)
-                    {
-                        peopleOnFloor.Add(person);
-                    }
-                }
-
-                if (peopleOnFloor.Count > 0)
-                {
-                    var ids = new List<string>();
-                    foreach (var person in peopleOnFloor)
-                    {
-                        ids.Add(person.Id.ToString());
-                    }
-                    peopleText.Text = $"Люди: {string.Join(", ", ids)}";
-                }
-                else
-                {
-                    peopleText.Text = "";
+                    floorText.Foreground = Brushes.Black;
                 }
             }
 
@@ -402,10 +336,10 @@ namespace ElevatorSim
                     stateText = "Ожидание";
                     break;
                 case ElevatorState.MovingUp:
-                    stateText = $"Движение вверх → {_elevator.CurrentFloor}";
+                    stateText = $"Движение вверх";
                     break;
                 case ElevatorState.MovingDown:
-                    stateText = $"Движение вниз → {_elevator.CurrentFloor}";
+                    stateText = $"Движение вниз";
                     break;
                 case ElevatorState.DoorsOpen:
                     stateText = "Двери открыты";
@@ -428,12 +362,13 @@ namespace ElevatorSim
                 {
                     ids.Add(person.Id.ToString());
                 }
-                _elevatorPeopleText.Text = $"Люди: {string.Join(", ", ids)}\n" +
-                                          $"Вес: {_elevator.CurrentWeight} кг";
+                _elevatorPeopleText.Text = $"Люди внутри: {string.Join(", ", ids)}\n" +
+                                          $"Вес: {_elevator.CurrentWeight:F1} кг\n" +
+                                          $"Состояние: {stateText}";
             }
             else
             {
-                _elevatorPeopleText.Text = "Пустой";
+                _elevatorPeopleText.Text = $"Пустой\nСостояние: {stateText}";
             }
 
             UpdateInfoPanel();
@@ -444,8 +379,8 @@ namespace ElevatorSim
         {
             CurrentFloorText.Text = _elevator.CurrentFloor.ToString();
             ElevatorStateText.Text = _elevator.State.ToString();
-            WeightText.Text = $"{_elevator.CurrentWeight} кг";
-            TransportedText.Text = _transportedCount.ToString();
+            WeightText.Text = $"{_elevator.CurrentWeight:F1} кг";
+            PeopleCountText.Text = _allPeople.Count.ToString();
         }
 
         // Обновление статуса
@@ -460,22 +395,14 @@ namespace ElevatorSim
         {
             try
             {
-                // Ищем TextBox для лога более безопасным способом
-                if (MainContentGrid.Children.Count > 0 &&
-                    MainContentGrid.Children[0] is Grid mainGrid &&
-                    mainGrid.Children.Count > 1 &&
-                    mainGrid.Children[1] is StackPanel infoStack &&
-                    infoStack.Children.Count > 4 &&
-                    infoStack.Children[4] is TextBox logTextBox)
+                Dispatcher.Invoke(() =>
                 {
-                    logTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
-                    logTextBox.ScrollToEnd();
-                }
-                else
-                {
-                    // Если не нашли лог, выводим в консоль
-                    System.Diagnostics.Debug.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
-                }
+                    if (_logTextBox != null)
+                    {
+                        _logTextBox.AppendText($"[{_currentTime} сек] {message}\n");
+                        _logTextBox.ScrollToEnd();
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -486,9 +413,15 @@ namespace ElevatorSim
         // Основная логика симуляции
         private void SimulationTimer_Tick(object sender, EventArgs e)
         {
-            if (_isPaused) return;
+            if (_isPaused || _systemStopped) return;
 
             _currentTime++;
+
+            // Обновляем текущий этаж для людей в лифте
+            foreach (var person in _elevator.PeopleInside)
+            {
+                person.CurrentFloor = _elevator.CurrentFloor;
+            }
 
             switch (_elevator.State)
             {
@@ -497,8 +430,11 @@ namespace ElevatorSim
                     break;
 
                 case ElevatorState.MovingUp:
+                    ProcessMovingUpState();
+                    break;
+
                 case ElevatorState.MovingDown:
-                    ProcessMovingState();
+                    ProcessMovingDownState();
                     break;
 
                 case ElevatorState.DoorsOpen:
@@ -511,27 +447,6 @@ namespace ElevatorSim
             }
 
             UpdateVisuals();
-
-            // Проверка завершения
-            bool allDelivered = true;
-            foreach (var person in _allPeople)
-            {
-                if (person.State != PersonState.Delivered)
-                {
-                    allDelivered = false;
-                    break;
-                }
-            }
-
-            if (allDelivered)
-            {
-                _simulationTimer.Stop();
-                UpdateStatus("Все люди доставлены! Симуляция завершена.");
-                StartButton.IsEnabled = false;
-                StopButton.IsEnabled = false;
-                PauseButton.IsEnabled = false;
-                StepButton.IsEnabled = false;
-            }
         }
 
         // Обработка состояния "Ожидание"
@@ -544,23 +459,75 @@ namespace ElevatorSim
             {
                 // Определяем направление
                 int nextTarget = _elevator.TargetFloors[0];
-                _elevator.CurrentDirection = nextTarget > _elevator.CurrentFloor ? Direction.Up : Direction.Down;
-                _elevator.State = _elevator.CurrentDirection == Direction.Up ? ElevatorState.MovingUp : ElevatorState.MovingDown;
-                UpdateStatus($"Лифт начал движение {_elevator.CurrentDirection} к этажу {nextTarget}");
+
+                // Проверяем границы этажей
+                if (nextTarget < 1)
+                {
+                    _elevator.TargetFloors.Remove(nextTarget);
+                    FindNextTarget();
+                    return;
+                }
+
+                if (nextTarget > _elevator.CurrentFloor)
+                {
+                    _elevator.CurrentDirection = Direction.Up;
+                    _elevator.State = ElevatorState.MovingUp;
+                    UpdateStatus($"Лифт начал движение ВВЕРХ к этажу {nextTarget}");
+                }
+                else if (nextTarget < _elevator.CurrentFloor)
+                {
+                    _elevator.CurrentDirection = Direction.Down;
+                    _elevator.State = ElevatorState.MovingDown;
+                    UpdateStatus($"Лифт начал движение ВНИЗ к этажу {nextTarget}");
+                }
+                else
+                {
+                    _elevator.State = ElevatorState.DoorsOpen;
+                    _elevator.TargetFloors.Remove(nextTarget);
+                    UpdateStatus($"Лифт на целевом этаже {nextTarget}. Двери открываются.");
+                }
             }
         }
 
-        // Обработка состояния "Движение"
-        private void ProcessMovingState()
+        // Обработка состояния "Движение вверх"
+        private void ProcessMovingUpState()
         {
-            // Двигаем лифт
-            if (_elevator.CurrentDirection == Direction.Up)
+            // Двигаем лифт вверх
+            _elevator.CurrentFloor++;
+
+            // Проверяем верхнюю границу
+            if (_elevator.CurrentFloor > _initData.TotalFloors)
             {
-                _elevator.CurrentFloor++;
+                _elevator.CurrentFloor = _initData.TotalFloors;
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus($"Достигнут верхний этаж {_initData.TotalFloors}");
+                return;
             }
-            else if (_elevator.CurrentDirection == Direction.Down)
+
+            UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
+
+            // Проверяем, достигли ли цели
+            if (_elevator.TargetFloors.Contains(_elevator.CurrentFloor))
             {
-                _elevator.CurrentFloor--;
+                _elevator.State = ElevatorState.DoorsOpen;
+                _elevator.TargetFloors.Remove(_elevator.CurrentFloor);
+                UpdateStatus($"Лифт остановился на этаже {_elevator.CurrentFloor}. Двери открываются.");
+            }
+        }
+
+        // Обработка состояния "Движение вниз"
+        private void ProcessMovingDownState()
+        {
+            // Двигаем лифт вниз
+            _elevator.CurrentFloor--;
+
+            // Проверяем нижнюю границу
+            if (_elevator.CurrentFloor < 1)
+            {
+                _elevator.CurrentFloor = 1;
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus($"Достигнут нижний этаж 1");
+                return;
             }
 
             UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
@@ -578,7 +545,7 @@ namespace ElevatorSim
         private void ProcessDoorsOpenState()
         {
             // Высадка людей
-            var peopleToExit = new List<PersonInSystem>();
+            var peopleToExit = new List<Person>();
             foreach (var person in _elevator.PeopleInside)
             {
                 if (person.TargetFloor == _elevator.CurrentFloor)
@@ -590,13 +557,19 @@ namespace ElevatorSim
             foreach (var person in peopleToExit)
             {
                 person.State = PersonState.Delivered;
+                person.CurrentFloor = _elevator.CurrentFloor;
                 _elevator.PeopleInside.Remove(person);
                 _transportedCount++;
-                UpdateStatus($"Человек {person.Id} вышел на этаже {_elevator.CurrentFloor}");
+
+                // Добавляем в список для удаления через 5 секунд
+                person.RemovalTime = DateTime.Now;
+                _peopleToRemove.Add(person);
+
+                UpdateStatus($"Человек {person.Id} вышел на этаже {_elevator.CurrentFloor} (будет удален через 5 сек)");
             }
 
             // Посадка людей
-            var peopleToEnter = new List<PersonInSystem>();
+            var peopleToEnter = new List<Person>();
             foreach (var person in _allPeople)
             {
                 if (person.State == PersonState.Waiting &&
@@ -618,7 +591,11 @@ namespace ElevatorSim
                     {
                         _elevator.TargetFloors.Add(person.TargetFloor);
                     }
-                    UpdateStatus($"Человек {person.Id} вошел в лифт (вес: {person.Weight} кг)");
+                    UpdateStatus($"Человек {person.Id} вошел в лифт (вес: {person.Weight} кг) → этаж {person.TargetFloor}");
+                }
+                else
+                {
+                    UpdateStatus($"Человек {person.Id} не может войти: перегрузка!");
                 }
             }
 
@@ -633,7 +610,9 @@ namespace ElevatorSim
             }
             _elevator.TargetFloors = uniqueFloors;
 
-            if (_elevator.CurrentDirection == Direction.Up)
+            // Сортируем в зависимости от направления
+            if (_elevator.CurrentDirection == Direction.Up ||
+                (_elevator.CurrentDirection == Direction.None && _elevator.TargetFloors.Any(f => f > _elevator.CurrentFloor)))
             {
                 _elevator.TargetFloors.Sort();
             }
@@ -669,7 +648,7 @@ namespace ElevatorSim
             if (_elevator.TargetFloors.Count == 0)
             {
                 // Ищем людей, ожидающих лифт
-                var waitingPeople = new List<PersonInSystem>();
+                var waitingPeople = new List<Person>();
                 foreach (var person in _allPeople)
                 {
                     if (person.State == PersonState.Waiting)
@@ -681,7 +660,7 @@ namespace ElevatorSim
                 if (waitingPeople.Count > 0)
                 {
                     // Берем ближайшего человека
-                    PersonInSystem nearestPerson = null;
+                    Person nearestPerson = null;
                     int minDistance = int.MaxValue;
 
                     foreach (var person in waitingPeople)
@@ -699,29 +678,48 @@ namespace ElevatorSim
                         _elevator.TargetFloors.Add(nearestPerson.CurrentFloor);
                     }
                 }
+
+                // Если в лифте есть люди, добавляем их цели
+                foreach (var person in _elevator.PeopleInside)
+                {
+                    if (!_elevator.TargetFloors.Contains(person.TargetFloor))
+                    {
+                        _elevator.TargetFloors.Add(person.TargetFloor);
+                    }
+                }
             }
         }
 
-        #region Обработчики кнопок
+        // Обработчик кнопки "Создать человека"
+        private void CreatePersonButton_Click(object sender, RoutedEventArgs e)
+        {
+            var createWindow = new CreatePersonWindow(this, _initData.TotalFloors);
+            createWindow.Owner = this;
+            createWindow.ShowDialog();
+        }
 
+        #region Обработчики кнопок
         private void StartButton_Click(object sender, RoutedEventArgs e)
         {
+            _systemStopped = false;
             _simulationTimer.Start();
+            _cleanupTimer.Start();
             UpdateStatus("Симуляция запущена");
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = true;
             PauseButton.IsEnabled = true;
-            StepButton.IsEnabled = true;
+            CreatePersonButton.IsEnabled = true;
         }
 
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
+            _systemStopped = true;
             _simulationTimer.Stop();
+            _cleanupTimer.Stop();
             UpdateStatus("Симуляция остановлена");
             StartButton.IsEnabled = true;
             StopButton.IsEnabled = false;
             PauseButton.IsEnabled = false;
-            StepButton.IsEnabled = false;
             _isPaused = false;
             PauseButton.Content = "Пауза";
         }
@@ -741,19 +739,12 @@ namespace ElevatorSim
             }
         }
 
-        private void StepButton_Click(object sender, RoutedEventArgs e)
-        {
-            _isPaused = true;
-            PauseButton.Content = "Продолжить";
-            SimulationTimer_Tick(null, EventArgs.Empty);
-            UpdateStatus("Выполнен шаг симуляции (1 секунда)");
-        }
-
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            _systemStopped = true;
             _simulationTimer?.Stop();
+            _cleanupTimer?.Stop();
         }
-
         #endregion
     }
 }
