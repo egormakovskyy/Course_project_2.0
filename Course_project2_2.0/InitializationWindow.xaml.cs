@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Linq;
 
 namespace ElevatorSim
@@ -14,7 +15,6 @@ namespace ElevatorSim
             public double Weight { get; set; }
             public int CurrentFloor { get; set; }
             public int TargetFloor { get; set; }
-            // Направление вычисляем, но не показываем в таблице
             public string Direction => TargetFloor > CurrentFloor ? "Вверх" : TargetFloor < CurrentFloor ? "Вниз" : "На месте";
         }
 
@@ -25,19 +25,7 @@ namespace ElevatorSim
         {
             InitializeComponent();
             PeopleDataGrid.ItemsSource = _people;
-            UpdateSummary();
-            AddLog("Окно инициализации загружено. Добавьте людей в систему.");
         }
-
-        // Класс для передачи данных в основное окно
-        public class InitializationData
-        {
-            public int TotalFloors { get; set; }
-            public int StartFloor { get; set; }
-            public ObservableCollection<Person> People { get; set; }
-        }
-
-        public InitializationData Data { get; private set; }
 
         // Кнопка "Добавить человека"
         private void AddPersonButton_Click(object sender, RoutedEventArgs e)
@@ -60,10 +48,8 @@ namespace ElevatorSim
                     CurrentFloor = 1,
                     TargetFloor = Math.Min(totalFloors, 2) // Чтобы не выходить за пределы этажей
                 };
-                
+
                 _people.Add(person);
-                AddLog($"Добавлен человек ID {person.Id}: вес {person.Weight}кг, с этажа {person.CurrentFloor} на этаж {person.TargetFloor}");
-                UpdateSummary();
             }
             catch (Exception ex)
             {
@@ -78,27 +64,12 @@ namespace ElevatorSim
             if (PeopleDataGrid.SelectedItem is Person selectedPerson)
             {
                 _people.Remove(selectedPerson);
-                AddLog($"Удален человек ID {selectedPerson.Id}");
-                UpdateSummary();
             }
             else
             {
                 MessageBox.Show("Выберите человека для удаления", "Информация",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
-        }
-
-        // Обновление сводной информации
-        private void UpdateSummary()
-        {
-            var totalWeight = _people.Sum(p => p.Weight);
-            var upCount = _people.Count(p => p.Direction == "Вверх");
-            var downCount = _people.Count(p => p.Direction == "Вниз");
-            
-            SummaryTextBlock.Text = $"Всего людей: {_people.Count}\n" +
-                                   $"Общий вес: {totalWeight} кг\n" +
-                                   $"Хотят подняться: {upCount}\n" +
-                                   $"Хотят спуститься: {downCount}";
         }
 
         // Кнопка "Инициализировать систему"
@@ -163,8 +134,6 @@ namespace ElevatorSim
                     }
                 }
 
-                AddLog("Инициализация завершена успешно!");
-
                 // Открываем основное окно
                 var mainData = new MainWindow.InitializationData
                 {
@@ -193,13 +162,6 @@ namespace ElevatorSim
             {
                 Application.Current.Shutdown();
             }
-        }
-
-        // Добавление записи в лог
-        private void AddLog(string message)
-        {
-            LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
-            LogTextBox.ScrollToEnd();
         }
     }
 }

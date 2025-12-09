@@ -11,8 +11,6 @@
     <Grid Margin="15">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -66,10 +64,12 @@
                             Click="RemovePersonButton_Click" Padding="10,5"/>
                 </StackPanel>
 
-                <!-- Таблица людей -->
+                <!-- Таблица людей БЕЗ ограничения MaxHeight -->
                 <DataGrid x:Name="PeopleDataGrid" Grid.Row="1" AutoGenerateColumns="False" 
-                          CanUserAddRows="False" SelectionMode="Single" MinHeight="150"
-                          CanUserDeleteRows="False" CanUserReorderColumns="False">
+                          CanUserAddRows="False" SelectionMode="Single"
+                          CanUserDeleteRows="False" CanUserReorderColumns="False"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60" IsReadOnly="True"/>
                         <DataGridTextColumn Header="Вес (кг)" Binding="{Binding Weight}" Width="100"/>
@@ -80,27 +80,16 @@
             </Grid>
         </GroupBox>
 
-        <!-- Секция 3: Статистика -->
-        <GroupBox Grid.Row="2" Header="Сводка" Margin="0,0,0,15" Padding="10">
-            <StackPanel>
-                <TextBlock x:Name="SummaryTextBlock" TextWrapping="Wrap" FontSize="14"/>
-            </StackPanel>
-        </GroupBox>
-
-        <!-- Секция 4: Лог действий -->
-        <GroupBox Grid.Row="3" Header="Лог инициализации" Margin="0,0,0,15" Padding="10">
-            <TextBox x:Name="LogTextBox" IsReadOnly="True" VerticalScrollBarVisibility="Auto" 
-                     HorizontalScrollBarVisibility="Auto" Height="120" FontFamily="Consolas"/>
-        </GroupBox>
-
         <!-- Кнопки -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
-            <Button x:Name="InitializeButton" Content="Инициализировать систему" 
-                    Width="180" Height="35" Margin="10" Click="InitializeButton_Click" 
-                    FontSize="14" FontWeight="Bold" Background="#FF0078D7" Foreground="White"/>
-            <Button x:Name="CancelButton" Content="Отмена" 
-                    Width="100" Height="35" Margin="10" Click="CancelButton_Click"
-                    FontSize="14"/>
-        </StackPanel>
+        <Border Grid.Row="2" Background="#FFF0F0F0" Padding="10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button x:Name="InitializeButton" Content="Инициализировать систему" 
+                        Width="180" Height="35" Margin="10" Click="InitializeButton_Click" 
+                        FontSize="14" FontWeight="Bold" Background="#FF0078D7" Foreground="White"/>
+                <Button x:Name="CancelButton" Content="Отмена" 
+                        Width="100" Height="35" Margin="10" Click="CancelButton_Click"
+                        FontSize="14"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

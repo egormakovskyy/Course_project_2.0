@@ -22,15 +22,22 @@ namespace ElevatorSim
 
         private InitializationData _initData;
         private ObservableCollection<Person> _allPeople = new ObservableCollection<Person>();
-        private List<Person> _peopleToRemove = new List<Person>();
         private Elevator _elevator = new Elevator();
         private DispatcherTimer _simulationTimer;
         private DispatcherTimer _cleanupTimer;
+        private DispatcherTimer _statusTimer;
         private int _currentTime = 0;
         private int _transportedCount = 0;
-        private bool _isPaused = false;
         private int _nextPersonId = 1;
         private bool _systemStopped = false;
+        private DateTime _systemStartTime;
+
+        // Статистика
+        private int _totalTrips = 0;
+        private int _emptyTrips = 0;
+        private double _totalWeightMoved = 0;
+        private int _totalPeopleCreated = 0;
+        private Direction _lastDirection = Direction.None;
 
         // Визуальные элементы
         private List<Border> _floorVisuals = new List<Border>();
@@ -45,6 +52,7 @@ namespace ElevatorSim
         {
             InitializeComponent();
             _initData = initData;
+            _totalPeopleCreated = initData.People.Count; // Учитываем людей из инициализации
             InitializeSystem();
             CreateVisualInterface();
             InitializeTimers();
@@ -75,17 +83,6 @@ namespace ElevatorSim
             UpdateInfoPanel();
         }
 
-        // Публичный метод для добавления нового человека из других окон
-        public void AddNewPerson(Person person)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                _allPeople.Add(person);
-                UpdateStatus($"Создан новый человек ID {person.Id} на этаже {person.CurrentFloor}");
-                UpdateInfoPanel();
-            });
-        }
-
         // Инициализация таймеров
         private void InitializeTimers()
         {
@@ -96,6 +93,46 @@ namespace ElevatorSim
             _cleanupTimer = new DispatcherTimer();
             _cleanupTimer.Interval = TimeSpan.FromSeconds(1);
             _cleanupTimer.Tick += CleanupTimer_Tick;
+
+            // Таймер для обновления времени работы системы
+            _statusTimer = new DispatcherTimer();
+            _statusTimer.Interval = TimeSpan.FromSeconds(1);
+            _statusTimer.Tick += StatusTimer_Tick;
+        }
+
+        // Таймер обновления статуса (время работы)
+        private void StatusTimer_Tick(object sender, EventArgs e)
+        {
+            if (!_systemStopped)
+            {
+                UpdateElapsedTime();
+            }
+        }
+
+        // Обновление прошедшего времени
+        private void UpdateElapsedTime()
+        {
+            if (_simulationTimer.IsEnabled)
+            {
+                TimeSpan elapsedTime = DateTime.Now - _systemStartTime;
+                ElapsedTimeText.Text = $"{elapsedTime:mm\\:ss}";
+            }
+            else
+            {
+                ElapsedTimeText.Text = "00:00";
+            }
+        }
+
+        // Публичный метод для добавления нового человека из других окон
+        public void AddNewPerson(Person person)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _allPeople.Add(person);
+                _totalPeopleCreated++;
+                UpdateStatus($"Создан новый человек ID {person.Id} на этаже {person.CurrentFloor}");
+                UpdateInfoPanel();
+            });
         }
 
         // Таймер очистки доставленных людей
@@ -105,20 +142,15 @@ namespace ElevatorSim
             {
                 if (_systemStopped) return;
 
-                var now = DateTime.Now;
                 var peopleToRemoveNow = new List<Person>();
 
-                foreach (var person in _peopleToRemove)
+                // Проверяем, прошло ли 5 секунд с момента доставки
+                foreach (var person in _allPeople.Where(p => p.State == PersonState.Delivered).ToList())
                 {
-                    if ((now - person.RemovalTime).TotalSeconds >= 5)
+                    if ((DateTime.Now - person.DeliveryTime).TotalSeconds >= 5)
                     {
                         peopleToRemoveNow.Add(person);
                     }
-                }
-
-                foreach (var person in peopleToRemoveNow)
-                {
-                    _peopleToRemove.Remove(person);
                 }
 
                 foreach (var person in peopleToRemoveNow)
@@ -380,7 +412,10 @@ namespace ElevatorSim
             CurrentFloorText.Text = _elevator.CurrentFloor.ToString();
             ElevatorStateText.Text = _elevator.State.ToString();
             WeightText.Text = $"{_elevator.CurrentWeight:F1} кг";
-            PeopleCountText.Text = _allPeople.Count.ToString();
+            TransportedCountText.Text = _transportedCount.ToString();
+
+            // Обновляем состояние кнопки Стоп
+            StopButton.IsEnabled = (_elevator.PeopleInside.Count == 0);
         }
 
         // Обновление статуса
@@ -413,7 +448,7 @@ namespace ElevatorSim
         // Основная логика симуляции
         private void SimulationTimer_Tick(object sender, EventArgs e)
         {
-            if (_isPaused || _systemStopped) return;
+            if (_systemStopped) return;
 
             _currentTime++;
 
@@ -470,12 +505,28 @@ namespace ElevatorSim
 
                 if (nextTarget > _elevator.CurrentFloor)
                 {
+                    // Учет смены направления
+                    if (_elevator.CurrentDirection != Direction.Up)
+                    {
+                        _totalTrips++;
+                        if (_elevator.PeopleInside.Count == 0) _emptyTrips++;
+                        _lastDirection = Direction.Up;
+                    }
+
                     _elevator.CurrentDirection = Direction.Up;
                     _elevator.State = ElevatorState.MovingUp;
                     UpdateStatus($"Лифт начал движение ВВЕРХ к этажу {nextTarget}");
                 }
                 else if (nextTarget < _elevator.CurrentFloor)
                 {
+                    // Учет смены направления
+                    if (_elevator.CurrentDirection != Direction.Down)
+                    {
+                        _totalTrips++;
+                        if (_elevator.PeopleInside.Count == 0) _emptyTrips++;
+                        _lastDirection = Direction.Down;
+                    }
+
                     _elevator.CurrentDirection = Direction.Down;
                     _elevator.State = ElevatorState.MovingDown;
                     UpdateStatus($"Лифт начал движение ВНИЗ к этажу {nextTarget}");
@@ -561,9 +612,8 @@ namespace ElevatorSim
                 _elevator.PeopleInside.Remove(person);
                 _transportedCount++;
 
-                // Добавляем в список для удаления через 5 секунд
-                person.RemovalTime = DateTime.Now;
-                _peopleToRemove.Add(person);
+                // Учитываем перемещенный вес
+                _totalWeightMoved += person.Weight;
 
                 UpdateStatus($"Человек {person.Id} вышел на этаже {_elevator.CurrentFloor} (будет удален через 5 сек)");
             }
@@ -702,41 +752,44 @@ namespace ElevatorSim
         private void StartButton_Click(object sender, RoutedEventArgs e)
         {
             _systemStopped = false;
+            _systemStartTime = DateTime.Now;
             _simulationTimer.Start();
             _cleanupTimer.Start();
+            _statusTimer.Start();
             UpdateStatus("Симуляция запущена");
             StartButton.IsEnabled = false;
-            StopButton.IsEnabled = true;
-            PauseButton.IsEnabled = true;
+            StopButton.IsEnabled = (_elevator.PeopleInside.Count == 0);
             CreatePersonButton.IsEnabled = true;
+            UpdateElapsedTime();
         }
 
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
+            // Проверяем, что лифт пустой
+            if (_elevator.PeopleInside.Count > 0)
+            {
+                MessageBox.Show("Невозможно остановить систему: в лифте находятся люди!",
+                    "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             _systemStopped = true;
             _simulationTimer.Stop();
             _cleanupTimer.Stop();
-            UpdateStatus("Симуляция остановлена");
-            StartButton.IsEnabled = true;
-            StopButton.IsEnabled = false;
-            PauseButton.IsEnabled = false;
-            _isPaused = false;
-            PauseButton.Content = "Пауза";
-        }
+            _statusTimer.Stop();
 
-        private void PauseButton_Click(object sender, RoutedEventArgs e)
-        {
-            _isPaused = !_isPaused;
-            if (_isPaused)
-            {
-                UpdateStatus("Симуляция на паузе");
-                PauseButton.Content = "Продолжить";
-            }
-            else
-            {
-                UpdateStatus("Симуляция продолжена");
-                PauseButton.Content = "Пауза";
-            }
+            // Создаем окно отчета
+            var reportWindow = new ReportWindow(
+                _totalTrips,
+                _emptyTrips,
+                _totalWeightMoved,
+                _totalPeopleCreated);
+
+            reportWindow.Owner = this;
+            reportWindow.Show();
+
+            // Скрываем текущее окно
+            this.Hide();
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -744,7 +797,16 @@ namespace ElevatorSim
             _systemStopped = true;
             _simulationTimer?.Stop();
             _cleanupTimer?.Stop();
+            _statusTimer?.Stop();
         }
         #endregion
+
+        // Метод для начала новой симуляции (вызывается из ReportWindow)
+        public void StartNewSimulation()
+        {
+            var loginWindow = new LoginWindow();
+            loginWindow.Show();
+            this.Close();
+        }
     }
 }

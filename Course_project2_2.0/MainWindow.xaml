@@ -39,8 +39,6 @@
                         Width="120" Height="35" Margin="5" Click="StartButton_Click"/>
                 <Button x:Name="StopButton" Content="Стоп" 
                         Width="80" Height="35" Margin="5" Click="StopButton_Click" IsEnabled="False"/>
-                <Button x:Name="PauseButton" Content="Пауза" 
-                        Width="80" Height="35" Margin="5" Click="PauseButton_Click" IsEnabled="False"/>
                 <Button x:Name="CreatePersonButton" Content="Создать человека" 
                         Width="120" Height="35" Margin="5" Click="CreatePersonButton_Click"
                         Background="#FF28A745" Foreground="White"/>
@@ -51,6 +49,7 @@
         <Border Grid.Row="3" Background="#FFE8E8E8" Padding="10">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
@@ -73,8 +72,13 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="3">
-                    <TextBlock Text="Людей в системе:" FontWeight="Bold"/>
-                    <TextBlock x:Name="PeopleCountText" Text="0" FontSize="16"/>
+                    <TextBlock Text="Время работы:" FontWeight="Bold"/>
+                    <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontSize="16"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="4">
+                    <TextBlock Text="Перевезено людей:" FontWeight="Bold"/>
+                    <TextBlock x:Name="TransportedCountText" Text="0" FontSize="16"/>
                 </StackPanel>
             </Grid>
         </Border>
