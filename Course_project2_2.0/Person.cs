@@ -15,17 +15,6 @@ namespace ElevatorSim.Models
         public int StartFloor { get; set; }
         public int TargetFloor { get; set; }
 
-        // Добавляем обратно свойство для совместимости
-        public DateTime RemovalTime
-        {
-            get => _deliveryTime;
-            set
-            {
-                _deliveryTime = value;
-                OnPropertyChanged(nameof(RemovalTime));
-            }
-        }
-
         public int CurrentFloor
         {
             get => _currentFloor;
@@ -89,9 +78,9 @@ namespace ElevatorSim.Models
                 switch (State)
                 {
                     case PersonState.Waiting:
-                        return $"Ожидает лифта на этаже {CurrentFloor} → этаж {TargetFloor}";
+                        return $"Ожидает на этаже {CurrentFloor} → этаж {TargetFloor}";
                     case PersonState.InElevator:
-                        return $"В лифте на этаже {CurrentFloor} → этаж {TargetFloor}";
+                        return $"В лифте → этаж {TargetFloor}";
                     case PersonState.Delivered:
                         if (_scheduledForRemoval)
                         {

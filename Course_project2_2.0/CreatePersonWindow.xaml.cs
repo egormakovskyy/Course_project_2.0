@@ -1,21 +1,24 @@
 ﻿using System;
 using System.Windows;
-using System.Windows.Controls;
-using ElevatorSim.Models;
 
 namespace ElevatorSim
 {
     public partial class CreatePersonWindow : Window
     {
         private readonly int _totalFloors;
-        private readonly MainWindow _mainWindow;
+        private readonly object _parentWindow; // Может быть MainWindow или InitializationWindow
         private static int _nextPersonId = 1001;
+        private bool _isFromInitialization = false;
 
-        public CreatePersonWindow(MainWindow mainWindow, int totalFloors)
+        public CreatePersonWindow(object parentWindow, int totalFloors)
         {
             InitializeComponent();
-            _mainWindow = mainWindow;
+            _parentWindow = parentWindow;
             _totalFloors = totalFloors;
+
+            // Определяем, из какого окна вызвано
+            _isFromInitialization = parentWindow is InitializationWindow;
+
             InitializeFloorComboBoxes();
         }
 
@@ -62,21 +65,36 @@ namespace ElevatorSim
                     return;
                 }
 
-                // Создаем нового человека
-                var newPerson = new Person
+                if (_isFromInitialization)
                 {
-                    Id = _nextPersonId++,
-                    Weight = weight,
-                    CurrentFloor = currentFloor,
-                    StartFloor = currentFloor,
-                    TargetFloor = targetFloor,
-                    State = PersonState.Waiting
-                };
+                    // Если вызвано из окна инициализации
+                    if (_parentWindow is InitializationWindow initWindow)
+                    {
+                        initWindow.AddPersonFromDialog(weight, currentFloor, targetFloor);
+                        MessageBox.Show($"Человек создан на этаже {currentFloor}", "Успех",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                else
+                {
+                    // Если вызвано из главного окна
+                    if (_parentWindow is MainWindow mainWindow)
+                    {
+                        // Создаем нового человека
+                        var newPerson = new Models.Person
+                        {
+                            Id = _nextPersonId++,
+                            Weight = weight,
+                            CurrentFloor = currentFloor,
+                            StartFloor = currentFloor,
+                            TargetFloor = targetFloor,
+                            State = Models.PersonState.Waiting
+                        };
 
-                // Добавляем в основную систему через главное окно
-                _mainWindow?.AddNewPerson(newPerson);
-
-                // УБРАНО: MessageBox.Show($"Человек ID {newPerson.Id} создан на этаже {currentFloor}", "Успех", ...)
+                        // Добавляем в основную систему через главное окно
+                        mainWindow.AddNewPerson(newPerson);
+                    }
+                }
 
                 this.Close();
             }

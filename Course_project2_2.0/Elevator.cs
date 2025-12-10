@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using ElevatorSim.Models;
 
 namespace ElevatorSim.Models
 {
@@ -14,6 +13,29 @@ namespace ElevatorSim.Models
 
         public double CurrentWeight => PeopleInside.Sum(p => p.Weight);
         public bool IsOverloaded => CurrentWeight > 400;
+
+        public bool HasPeople => PeopleInside.Count > 0;
+
+        // Метод для добавления целевого этажа
+        public void AddTargetFloor(int floor)
+        {
+            if (!TargetFloors.Contains(floor))
+            {
+                TargetFloors.Add(floor);
+            }
+        }
+
+        // Метод для удаления целевого этажа
+        public void RemoveTargetFloor(int floor)
+        {
+            TargetFloors.Remove(floor);
+        }
+
+        // Метод для очистки всех целей
+        public void ClearTargetFloors()
+        {
+            TargetFloors.Clear();
+        }
     }
 
     public enum ElevatorState

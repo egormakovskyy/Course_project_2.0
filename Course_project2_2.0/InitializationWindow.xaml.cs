@@ -2,7 +2,6 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Linq;
 
 namespace ElevatorSim
 {
@@ -20,6 +19,7 @@ namespace ElevatorSim
 
         private ObservableCollection<Person> _people = new ObservableCollection<Person>();
         private int _nextPersonId = 1;
+        private MainWindow _mainWindow;
 
         public InitializationWindow()
         {
@@ -40,13 +40,34 @@ namespace ElevatorSim
                     return;
                 }
 
-                // Создаем нового человека со значениями по умолчанию
+                // Создаем окно для создания человека
+                var createWindow = new CreatePersonWindow(this, totalFloors)
+                {
+                    Owner = this,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+
+                // Показываем окно и ждем результата
+                createWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при открытии окна создания человека: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Метод для добавления человека из CreatePersonWindow
+        public void AddPersonFromDialog(double weight, int currentFloor, int targetFloor)
+        {
+            try
+            {
                 var person = new Person
                 {
                     Id = _nextPersonId++,
-                    Weight = 70,
-                    CurrentFloor = 1,
-                    TargetFloor = Math.Min(totalFloors, 2) // Чтобы не выходить за пределы этажей
+                    Weight = weight,
+                    CurrentFloor = currentFloor,
+                    TargetFloor = targetFloor
                 };
 
                 _people.Add(person);
@@ -94,15 +115,7 @@ namespace ElevatorSim
                     return;
                 }
 
-                // Проверка наличия людей
-                if (_people.Count == 0)
-                {
-                    MessageBox.Show("Добавьте хотя бы одного человека", "Ошибка",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                // Проверка всех людей
+                // Проверка всех людей (если они есть)
                 foreach (var person in _people)
                 {
                     if (person.Weight <= 0 || person.Weight > 200)
@@ -134,7 +147,7 @@ namespace ElevatorSim
                     }
                 }
 
-                // Открываем основное окно
+                // Открываем основное окно (люди могут быть не заданы)
                 var mainData = new MainWindow.InitializationData
                 {
                     TotalFloors = totalFloors,

@@ -26,30 +26,24 @@
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- Количество этажей -->
                 <Label Grid.Column="0" Grid.Row="0" Content="Количество этажей (n):" 
-                       VerticalAlignment="Center" Margin="0,0,10,5"/>
+                       VerticalAlignment="Center" Margin="0,0,10,0"/>
                 <TextBox x:Name="FloorsTextBox" Grid.Column="1" Grid.Row="0" 
-                         Width="100" HorizontalAlignment="Left" Margin="0,0,0,5" Text="10"/>
+                         Width="100" HorizontalAlignment="Left" Margin="0,0,0,0" Text="10"/>
 
                 <!-- Стартовый этаж лифта -->
                 <Label Grid.Column="2" Grid.Row="0" Content="Стартовый этаж лифта:" 
-                       VerticalAlignment="Center" Margin="20,0,10,5"/>
+                       VerticalAlignment="Center" Margin="20,0,10,0"/>
                 <TextBox x:Name="StartFloorTextBox" Grid.Column="3" Grid.Row="0" 
-                         Width="100" HorizontalAlignment="Left" Margin="0,0,0,5" Text="1"/>
-
-                <!-- Информация -->
-                <TextBlock Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="4"
-                           Text="Примечание: этажи нумеруются с 1 до N"
-                           FontStyle="Italic" Foreground="Gray" Margin="0,5,0,0"/>
+                         Width="100" HorizontalAlignment="Left" Margin="0,0,0,0" Text="1"/>
             </Grid>
         </GroupBox>
 
         <!-- Секция 2: Список людей -->
-        <GroupBox Grid.Row="1" Header="Люди (вне лифта)" Margin="0,0,0,15" Padding="10">
+        <GroupBox Grid.Row="1" Header="Люди (вне лифта) - опционально" Margin="0,0,0,15" Padding="10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -64,7 +58,7 @@
                             Click="RemovePersonButton_Click" Padding="10,5"/>
                 </StackPanel>
 
-                <!-- Таблица людей БЕЗ ограничения MaxHeight -->
+                <!-- Таблица людей -->
                 <DataGrid x:Name="PeopleDataGrid" Grid.Row="1" AutoGenerateColumns="False" 
                           CanUserAddRows="False" SelectionMode="Single"
                           CanUserDeleteRows="False" CanUserReorderColumns="False"
@@ -83,8 +77,9 @@
         <!-- Кнопки -->
         <Border Grid.Row="2" Background="#FFF0F0F0" Padding="10">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <!-- УДЛИНЕНА кнопка -->
                 <Button x:Name="InitializeButton" Content="Инициализировать систему" 
-                        Width="180" Height="35" Margin="10" Click="InitializeButton_Click" 
+                        Width="200" Height="35" Margin="10" Click="InitializeButton_Click" 
                         FontSize="14" FontWeight="Bold" Background="#FF0078D7" Foreground="White"/>
                 <Button x:Name="CancelButton" Content="Отмена" 
                         Width="100" Height="35" Margin="10" Click="CancelButton_Click"
