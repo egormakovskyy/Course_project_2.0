@@ -56,6 +56,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" HorizontalAlignment="Center">
@@ -68,12 +69,33 @@
                     <TextBlock x:Name="WeightText" Text="0 кг" FontSize="16" FontWeight="SemiBold"/>
                 </StackPanel>
 
+                <!-- Индикатор перегрузки -->
                 <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                    <TextBlock Text="Перегрузка:" FontWeight="Bold" FontSize="12"/>
+                    <Border x:Name="OverloadIndicator" 
+                            Width="40" 
+                            Height="40" 
+                            CornerRadius="20" 
+                            Background="LightGray" 
+                            BorderThickness="2" 
+                            BorderBrush="DarkGray"
+                            Margin="0,5,0,0">
+                        <TextBlock Text="!" 
+                                   FontSize="24" 
+                                   FontWeight="Bold" 
+                                   Foreground="White" 
+                                   HorizontalAlignment="Center" 
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock x:Name="OverloadText" Text="Нет" FontSize="12" Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" HorizontalAlignment="Center">
                     <TextBlock Text="Время работы:" FontWeight="Bold" FontSize="12"/>
                     <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontSize="16" FontWeight="SemiBold"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="3" HorizontalAlignment="Center">
+                <StackPanel Grid.Column="4" HorizontalAlignment="Center">
                     <TextBlock Text="Перевезено людей:" FontWeight="Bold" FontSize="12"/>
                     <TextBlock x:Name="TransportedCountText" Text="0" FontSize="20" FontWeight="Bold" Foreground="#28A745"/>
                 </StackPanel>

@@ -12,7 +12,7 @@ namespace ElevatorSim
 {
     public partial class MainWindow : Window
     {
-        // Класс данных
+        // Класс данных инициализации
         public class InitializationData
         {
             public int TotalFloors { get; set; }
@@ -20,12 +20,14 @@ namespace ElevatorSim
             public ObservableCollection<InitializationWindow.Person> People { get; set; }
         }
 
+        // Приватные поля
         private InitializationData _initData;
         private ObservableCollection<Person> _allPeople = new ObservableCollection<Person>();
         private Elevator _elevator = new Elevator();
         private DispatcherTimer _simulationTimer;
         private DispatcherTimer _cleanupTimer;
         private DispatcherTimer _statusTimer;
+        private DispatcherTimer _overloadTimer;
         private int _currentTime = 0;
         private int _transportedCount = 0;
         private int _nextPersonId = 1;
@@ -39,31 +41,39 @@ namespace ElevatorSim
         private int _totalPeopleCreated = 0;
         private Direction _lastDirection = Direction.None;
 
-        // Кнопки вызова на этажах
+        // Элементы управления
         private Dictionary<int, Button> _callButtons = new Dictionary<int, Button>();
-
-        // Кнопки этажей в лифте
         private Dictionary<int, Button> _elevatorFloorButtons = new Dictionary<int, Button>();
         private Button _startMovementButton;
         private Border _elevatorPanelContainer;
         private Border _callPanelContainer;
-        private Border _overloadIndicator;
-        private TextBlock _overloadText;
-        private DispatcherTimer _overloadTimer;
+        private TextBox _logTextBox;
+        private ListView _peopleListView;
 
         // Визуальные элементы
         private List<Border> _floorVisuals = new List<Border>();
         private List<TextBlock> _floorTexts = new List<TextBlock>();
         private Border _elevatorVisual;
         private TextBlock _elevatorPeopleText;
-        private TextBox _logTextBox;
-        private ListView _peopleListView;
 
-        // Состояния кнопок
+        // Состояния
         private bool _waitingForStartButton = false;
         private List<int> _pressedFloorButtons = new List<int>();
+        private bool _isProcessingOverload = false;
+        private Person _lastEnteredPerson = null;
 
-        // Конструктор с данными
+        // Флаги для индикатора перегрузки
+        private bool _showOverloadIndicator = false;
+        private DateTime _overloadStartTime;
+        private DispatcherTimer _overloadIndicatorTimer;
+
+        // Защита от зацикливания
+        private int _lastOverloadFloor = -1;
+        private DateTime _lastOverloadTime;
+        private bool _isOverloadCooldown = false;
+        private DispatcherTimer _overloadCooldownTimer;
+
+        // Конструктор
         public MainWindow(InitializationData initData)
         {
             InitializeComponent();
@@ -72,6 +82,7 @@ namespace ElevatorSim
             InitializeSystem();
             CreateVisualInterface();
             InitializeTimers();
+            SetupEventHandlers();
         }
 
         // Инициализация системы
@@ -82,7 +93,7 @@ namespace ElevatorSim
             _elevator.CurrentDirection = Direction.None;
             _elevator.TargetFloors.Clear();
 
-            // Конвертируем людей из InitializationWindow в систему
+            // Конвертируем людей из InitializationWindow
             if (_initData.People != null)
             {
                 foreach (var person in _initData.People)
@@ -114,112 +125,165 @@ namespace ElevatorSim
             _cleanupTimer.Interval = TimeSpan.FromSeconds(1);
             _cleanupTimer.Tick += CleanupTimer_Tick;
 
-            // Таймер для обновления времени работы системы
             _statusTimer = new DispatcherTimer();
             _statusTimer.Interval = TimeSpan.FromSeconds(1);
             _statusTimer.Tick += StatusTimer_Tick;
 
-            // Таймер для индикатора перегрузки
             _overloadTimer = new DispatcherTimer();
             _overloadTimer.Interval = TimeSpan.FromSeconds(1);
             _overloadTimer.Tick += OverloadTimer_Tick;
+
+            // Таймер для индикатора перегрузки
+            _overloadIndicatorTimer = new DispatcherTimer();
+            _overloadIndicatorTimer.Interval = TimeSpan.FromMilliseconds(100);
+            _overloadIndicatorTimer.Tick += OverloadIndicatorTimer_Tick;
+
+            // Таймер для защиты от зацикливания
+            _overloadCooldownTimer = new DispatcherTimer();
+            _overloadCooldownTimer.Interval = TimeSpan.FromSeconds(3);
+            _overloadCooldownTimer.Tick += OverloadCooldownTimer_Tick;
         }
 
-        // Таймер для индикатора перегрузки
+        // Настройка обработчиков событий
+        private void SetupEventHandlers()
+        {
+            _elevator.PropertyChanged += Elevator_PropertyChanged;
+        }
+
+        // Обработчик изменения свойств лифта
+        private void Elevator_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(_elevator.IsOverloaded))
+            {
+                if (_elevator.IsOverloaded && !_showOverloadIndicator)
+                {
+                    // Запускаем индикатор перегрузки
+                    _showOverloadIndicator = true;
+                    _overloadStartTime = DateTime.Now;
+                    _overloadIndicatorTimer.Start();
+                    UpdateOverloadIndicator();
+                    UpdateVisuals();
+                }
+                else if (!_elevator.IsOverloaded && _showOverloadIndicator)
+                {
+                    // Перегрузка устранена
+                    // Индикатор будет гореть еще 1 секунду
+                }
+            }
+            else if (e.PropertyName == nameof(_elevator.CurrentWeight))
+            {
+                UpdateInfoPanel();
+            }
+        }
+
+        // Таймер для защиты от зацикливания
+        private void OverloadCooldownTimer_Tick(object sender, EventArgs e)
+        {
+            _overloadCooldownTimer.Stop();
+            _isOverloadCooldown = false;
+            UpdateStatus("Защита от зацикливания снята. Кнопки вызова снова активны.");
+        }
+
+        // Таймер для управления индикатором перегрузки
+        private void OverloadIndicatorTimer_Tick(object sender, EventArgs e)
+        {
+            if (_showOverloadIndicator)
+            {
+                // Проверяем, прошла ли 1 секунда с момента начала перегрузки
+                TimeSpan elapsed = DateTime.Now - _overloadStartTime;
+                if (elapsed.TotalSeconds >= 1.0 && !_elevator.IsOverloaded)
+                {
+                    // Прошла 1 секунда и перегрузки больше нет - выключаем индикатор
+                    _showOverloadIndicator = false;
+                    _overloadIndicatorTimer.Stop();
+                }
+
+                UpdateOverloadIndicator();
+                UpdateVisuals(); // Добавляем обновление визуализации
+            }
+        }
+
+        // Таймер обработки перегрузки
         private void OverloadTimer_Tick(object sender, EventArgs e)
         {
-            if (_elevator.IsOverloaded)
+            if (!_isProcessingOverload) return;
+
+            _overloadTimer.Stop();
+
+            // Проверяем, устранена ли перегрузка
+            if (!_elevator.IsOverloaded)
             {
-                ActivateOverloadIndicator();
+                _isProcessingOverload = false;
+                UpdateStatus("Перегрузка устранена. Система возобновляет работу.");
+
+                // Включаем защиту от зацикливания на этом этаже
+                ActivateOverloadProtection();
+
+                _simulationTimer.Start();
             }
             else
             {
-                DeactivateOverloadIndicator();
+                // Если перегрузка все еще есть, ждем еще секунду
+                UpdateStatus($"Перегрузка! Вес: {_elevator.CurrentWeight:F1} кг. Ожидание выхода людей...");
+                _overloadTimer.Start();
             }
         }
 
-        // Таймер обновления статуса (время работы)
-        private void StatusTimer_Tick(object sender, EventArgs e)
+        // Включение защиты от зацикливания
+        private void ActivateOverloadProtection()
         {
-            if (!_systemStopped)
-            {
-                UpdateElapsedTime();
-            }
+            _lastOverloadFloor = _elevator.CurrentFloor;
+            _lastOverloadTime = DateTime.Now;
+            _isOverloadCooldown = true;
+            _overloadCooldownTimer.Start();
+
+            UpdateStatus($"Защита от зацикливания активирована на этаже {_lastOverloadFloor} на 3 секунды");
         }
 
-        // Обновление прошедшего времени
-        private void UpdateElapsedTime()
+        // Проверка, разрешен ли вызов с этажа
+        private bool IsCallAllowedFromFloor(int floor)
         {
-            if (_simulationTimer.IsEnabled)
+            if (_isOverloadCooldown && floor == _lastOverloadFloor)
             {
-                TimeSpan elapsedTime = DateTime.Now - _systemStartTime;
-                ElapsedTimeText.Text = $"{elapsedTime:mm\\:ss}";
+                TimeSpan elapsed = DateTime.Now - _lastOverloadTime;
+                if (elapsed.TotalSeconds < 3)
+                {
+                    return false;
+                }
+                else
+                {
+                    _isOverloadCooldown = false;
+                    _overloadCooldownTimer.Stop();
+                }
             }
-            else
-            {
-                ElapsedTimeText.Text = "00:00";
-            }
+            return true;
         }
 
-        // Публичный метод для добавления нового человека из других окон
-        public void AddNewPerson(Person person)
+        // Обновление индикатора перегрузки
+        private void UpdateOverloadIndicator()
         {
             Dispatcher.Invoke(() =>
             {
-                _allPeople.Add(person);
-                _totalPeopleCreated++;
-
-                // Автоматически нажимаем кнопку вызова на этаже, где появился человек
-                if (_callButtons.ContainsKey(person.CurrentFloor))
+                if (_showOverloadIndicator || _elevator.State == ElevatorState.Overloaded)
                 {
-                    PressCallButton(person.CurrentFloor);
-
-                    // Добавляем этаж в цели лифта
-                    if (!_elevator.TargetFloors.Contains(person.CurrentFloor))
-                    {
-                        _elevator.TargetFloors.Add(person.CurrentFloor);
-                        SortTargetFloors();
-                    }
+                    OverloadIndicator.Background = Brushes.Red;
+                    OverloadIndicator.BorderBrush = Brushes.DarkRed;
+                    OverloadText.Text = "ДА";
+                    OverloadText.Foreground = Brushes.Red;
+                    OverloadText.FontWeight = FontWeights.Bold;
                 }
-
-                UpdateStatus($"Создан новый человек ID {person.Id} на этаже {person.CurrentFloor}");
-                UpdateInfoPanel();
+                else
+                {
+                    OverloadIndicator.Background = Brushes.LightGray;
+                    OverloadIndicator.BorderBrush = Brushes.DarkGray;
+                    OverloadText.Text = "Нет";
+                    OverloadText.Foreground = Brushes.Black;
+                    OverloadText.FontWeight = FontWeights.Normal;
+                }
             });
         }
 
-        // Таймер очистки доставленных людей
-        private void CleanupTimer_Tick(object sender, EventArgs e)
-        {
-            try
-            {
-                if (_systemStopped) return;
-
-                var peopleToRemoveNow = new List<Person>();
-
-                // Проверяем, прошло ли 5 секунд с момента доставки
-                foreach (var person in _allPeople.Where(p => p.State == PersonState.Delivered).ToList())
-                {
-                    if ((DateTime.Now - person.DeliveryTime).TotalSeconds >= 5)
-                    {
-                        peopleToRemoveNow.Add(person);
-                    }
-                }
-
-                foreach (var person in peopleToRemoveNow)
-                {
-                    _allPeople.Remove(person);
-                    AddLog($"Человек ID {person.Id} удален из системы");
-                }
-
-                UpdateInfoPanel();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Ошибка в CleanupTimer: {ex.Message}");
-            }
-        }
-
-        // Создание визуального интерфейса
+        // Создание визуального интерфейса (ПОЛНЫЙ КОД!)
         private void CreateVisualInterface()
         {
             MainContentGrid.Children.Clear();
@@ -233,7 +297,7 @@ namespace ElevatorSim
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.5, GridUnitType.Star) });
 
-            // Левая панель: этажи здания с кнопками вызова
+            // Левая панель: вызов лифта
             _callPanelContainer = new Border
             {
                 BorderBrush = Brushes.Gray,
@@ -270,7 +334,7 @@ namespace ElevatorSim
                     Padding = new Thickness(8, 8, 8, 8),
                     CornerRadius = new CornerRadius(5),
                     Background = Brushes.White,
-                    Width = 220 
+                    Width = 220
                 };
 
                 var floorGrid = new Grid();
@@ -283,15 +347,13 @@ namespace ElevatorSim
                     FontSize = 14,
                     FontWeight = FontWeights.Normal,
                     VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    TextWrapping = TextWrapping.Wrap
+                    HorizontalAlignment = HorizontalAlignment.Center
                 };
 
-                // Кнопка вызова на этаже
                 var callButton = new Button
                 {
                     Content = "Вызов",
-                    Width = 70, 
+                    Width = 70,
                     Height = 28,
                     Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
                     Foreground = Brushes.Black,
@@ -319,7 +381,7 @@ namespace ElevatorSim
             Grid.SetColumn(_callPanelContainer, 0);
             mainGrid.Children.Add(_callPanelContainer);
 
-            // Центральная панель: кнопки лифта
+            // Центральная панель: управление лифтом
             _elevatorPanelContainer = new Border
             {
                 BorderBrush = Brushes.DarkGray,
@@ -347,7 +409,7 @@ namespace ElevatorSim
             };
             centerPanel.Children.Add(elevatorButtonsTitle);
 
-            // Сетка для кнопок этажей (по 3 в ряд)
+            // Кнопки этажей (по 3 в ряд)
             int buttonsPerRow = 3;
             int totalRows = (int)Math.Ceiling(_initData.TotalFloors / (double)buttonsPerRow);
 
@@ -368,10 +430,10 @@ namespace ElevatorSim
                     var button = new Button
                     {
                         Content = $"{floor}",
-                        Width = 45, 
+                        Width = 45,
                         Height = 38,
                         Margin = new Thickness(3, 3, 3, 3),
-                        Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)), 
+                        Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
                         Foreground = Brushes.Black,
                         BorderBrush = Brushes.Gray,
                         BorderThickness = new Thickness(1, 1, 1, 1),
@@ -390,7 +452,7 @@ namespace ElevatorSim
                 }
             }
 
-            // Панель с кнопкой ХОД и индикатором перегрузки
+            // Кнопка "ХОД"
             var controlPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -398,40 +460,6 @@ namespace ElevatorSim
                 Margin = new Thickness(0, 15, 0, 5)
             };
 
-            // Индикатор перегрузки
-            _overloadIndicator = new Border
-            {
-                Width = 85,
-                Height = 40,
-                Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)), // Серый (неактивный)
-                BorderBrush = Brushes.Gray,
-                BorderThickness = new Thickness(1, 1, 1, 1),
-                CornerRadius = new CornerRadius(5),
-                Margin = new Thickness(0, 0, 10, 0),
-                ToolTip = "Индикатор перегрузки"
-            };
-
-            var overloadStack = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            _overloadText = new TextBlock
-            {
-                Text = "ПЕРЕГРУЗКА",
-                FontSize = 10,
-                FontWeight = FontWeights.Bold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = Brushes.Gray
-            };
-
-            overloadStack.Children.Add(_overloadText);
-            _overloadIndicator.Child = overloadStack;
-            controlPanel.Children.Add(_overloadIndicator);
-
-            // Кнопка "ХОД"
             _startMovementButton = new Button
             {
                 Content = "ХОД",
@@ -446,13 +474,13 @@ namespace ElevatorSim
                 FontSize = 14,
             };
             controlPanel.Children.Add(_startMovementButton);
-
             centerPanel.Children.Add(controlPanel);
+
             _elevatorPanelContainer.Child = centerPanel;
             Grid.SetColumn(_elevatorPanelContainer, 1);
             mainGrid.Children.Add(_elevatorPanelContainer);
 
-            // Правая панель: информация
+            // Правая панель: информация и логи
             var rightPanel = new StackPanel
             {
                 Margin = new Thickness(10, 10, 10, 10),
@@ -460,7 +488,7 @@ namespace ElevatorSim
             };
 
             // Лифт
-            var elevatorContainer = new Border
+            _elevatorVisual = new Border
             {
                 BorderBrush = Brushes.DarkBlue,
                 BorderThickness = new Thickness(2, 2, 2, 2),
@@ -497,9 +525,8 @@ namespace ElevatorSim
             elevatorGrid.Children.Add(elevatorTitle);
             elevatorGrid.Children.Add(_elevatorPeopleText);
 
-            elevatorContainer.Child = elevatorGrid;
-            _elevatorVisual = elevatorContainer;
-            rightPanel.Children.Add(elevatorContainer);
+            _elevatorVisual.Child = elevatorGrid;
+            rightPanel.Children.Add(_elevatorVisual);
 
             // Список людей
             var peopleTitle = new TextBlock
@@ -571,7 +598,7 @@ namespace ElevatorSim
             UpdateVisuals();
         }
 
-        // Нажать кнопку вызова на этаже
+        // Вспомогательные методы для кнопок
         private void PressCallButton(int floor)
         {
             Dispatcher.Invoke(() =>
@@ -582,12 +609,10 @@ namespace ElevatorSim
                     button.Background = new SolidColorBrush(Color.FromRgb(100, 149, 237));
                     button.Foreground = Brushes.White;
                     button.BorderBrush = Brushes.RoyalBlue;
-                    button.Content = "Вызов";
                 }
             });
         }
 
-        // Отжать кнопку вызова на этаже
         private void ReleaseCallButton(int floor)
         {
             Dispatcher.Invoke(() =>
@@ -595,16 +620,13 @@ namespace ElevatorSim
                 if (_callButtons.ContainsKey(floor))
                 {
                     var button = _callButtons[floor];
-                    // Возвращаем исходный цвет
                     button.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240));
                     button.Foreground = Brushes.Black;
                     button.BorderBrush = Brushes.Gray;
-                    button.Content = "Вызов";
                 }
             });
         }
 
-        // Нажать кнопку этажа в лифте
         private void PressElevatorFloorButton(int floor)
         {
             Dispatcher.Invoke(() =>
@@ -612,21 +634,17 @@ namespace ElevatorSim
                 if (_elevatorFloorButtons.ContainsKey(floor))
                 {
                     var button = _elevatorFloorButtons[floor];
-                    // Приятный красный цвет при нажатии
-                    button.Background = new SolidColorBrush(Color.FromRgb(220, 53, 69)); // Красный
+                    button.Background = new SolidColorBrush(Color.FromRgb(220, 53, 69));
                     button.Foreground = Brushes.White;
                     button.BorderBrush = Brushes.Red;
                     button.BorderThickness = new Thickness(2, 2, 2, 2);
 
                     if (!_pressedFloorButtons.Contains(floor))
-                    {
                         _pressedFloorButtons.Add(floor);
-                    }
                 }
             });
         }
 
-        // Отжать кнопку этажа в лифте
         private void ReleaseElevatorFloorButton(int floor)
         {
             Dispatcher.Invoke(() =>
@@ -634,29 +652,26 @@ namespace ElevatorSim
                 if (_elevatorFloorButtons.ContainsKey(floor))
                 {
                     var button = _elevatorFloorButtons[floor];
-                    button.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)); // Светло-серый
+                    button.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240));
                     button.Foreground = Brushes.Black;
                     button.BorderBrush = Brushes.Gray;
                     button.BorderThickness = new Thickness(1, 1, 1, 1);
-
                     _pressedFloorButtons.Remove(floor);
                 }
             });
         }
 
-        // Нажать кнопку ХОД
         private void PressStartMovementButton()
         {
             Dispatcher.Invoke(() =>
             {
-                _startMovementButton.Background = new SolidColorBrush(Color.FromRgb(40, 167, 69)); // Зеленый
+                _startMovementButton.Background = new SolidColorBrush(Color.FromRgb(40, 167, 69));
                 _startMovementButton.Foreground = Brushes.White;
                 _startMovementButton.BorderBrush = Brushes.DarkGreen;
                 _waitingForStartButton = false;
             });
         }
 
-        // Отжать кнопку ХОД
         private void ReleaseStartMovementButton()
         {
             Dispatcher.Invoke(() =>
@@ -667,35 +682,11 @@ namespace ElevatorSim
             });
         }
 
-        // Активировать индикатор перегрузки
-        private void ActivateOverloadIndicator()
-        {
-            Dispatcher.Invoke(() =>
-            {
-                _overloadIndicator.Background = new SolidColorBrush(Color.FromRgb(255, 193, 7)); // Оранжевый
-                _overloadIndicator.BorderBrush = Brushes.Orange;
-                _overloadText.Foreground = Brushes.Black;
-                _overloadText.FontWeight = FontWeights.Bold;
-            });
-        }
-
-        // Деактивировать индикатор перегрузки
-        private void DeactivateOverloadIndicator()
-        {
-            Dispatcher.Invoke(() =>
-            {
-                _overloadIndicator.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)); // Серый
-                _overloadIndicator.BorderBrush = Brushes.Gray;
-                _overloadText.Foreground = Brushes.Gray;
-            });
-        }
-
-        // Сортировка целей в зависимости от направления
+        // Сортировка целей
         private void SortTargetFloors()
         {
             if (_elevator.TargetFloors.Count == 0) return;
 
-            // Сортируем в зависимости от направления
             if (_elevator.CurrentDirection == Direction.Up ||
                 (_elevator.CurrentDirection == Direction.None &&
                  _elevator.TargetFloors.Any(f => f > _elevator.CurrentFloor)))
@@ -722,13 +713,22 @@ namespace ElevatorSim
                     var floorContainer = _floorVisuals[i];
                     var floorText = _floorTexts[i];
 
-                    // Подсвечиваем текущий этаж лифта
                     if (floorNumber == _elevator.CurrentFloor)
                     {
-                        floorContainer.Background = new SolidColorBrush(Color.FromRgb(220, 255, 220)); // Светло-зеленый
+                        floorContainer.Background = new SolidColorBrush(Color.FromRgb(220, 255, 220));
                         floorText.FontWeight = FontWeights.Bold;
-                        floorText.Text = $"Этаж {floorNumber} [ЛИФТ]";
-                        floorText.Foreground = Brushes.DarkGreen;
+
+                        // Отображаем перегрузку в тексте этажа
+                        if (_showOverloadIndicator || _elevator.State == ElevatorState.Overloaded)
+                        {
+                            floorText.Text = $"Этаж {floorNumber} [ПЕРЕГРУЗКА!]";
+                            floorText.Foreground = Brushes.Red;
+                        }
+                        else
+                        {
+                            floorText.Text = $"Этаж {floorNumber} [ЛИФТ]";
+                            floorText.Foreground = Brushes.DarkGreen;
+                        }
                     }
                     else
                     {
@@ -741,52 +741,51 @@ namespace ElevatorSim
 
                 // Обновляем лифт
                 string stateText;
-                switch (_elevator.State)
-                {
-                    case ElevatorState.Idle:
-                        stateText = "Ожидание";
-                        break;
-                    case ElevatorState.MovingUp:
-                        stateText = $"Движение вверх → этаж {_elevator.TargetFloors.FirstOrDefault()}";
-                        break;
-                    case ElevatorState.MovingDown:
-                        stateText = $"Движение вниз → этаж {_elevator.TargetFloors.FirstOrDefault()}";
-                        break;
-                    case ElevatorState.DoorsOpen:
-                        stateText = "Двери открыты";
-                        break;
-                    case ElevatorState.Overloaded:
-                        stateText = "ПЕРЕГРУЗКА!";
-                        break;
-                    default:
-                        stateText = "Неизвестно";
-                        break;
-                }
+                Color backgroundColor;
 
-                _elevatorVisual.Background = _elevator.IsOverloaded ?
-                    new SolidColorBrush(Color.FromRgb(255, 220, 220)) : // Светло-красный при перегрузке
-                    new SolidColorBrush(Color.FromRgb(173, 216, 230)); // Светло-голубой
-
-                // Обновляем индикатор перегрузки в реальном времени
-                if (_elevator.IsOverloaded)
+                if (_showOverloadIndicator || _elevator.State == ElevatorState.Overloaded)
                 {
-                    ActivateOverloadIndicator();
+                    stateText = "ПЕРЕГРУЗКА!";
+                    backgroundColor = Color.FromRgb(255, 182, 193);
                 }
                 else
                 {
-                    DeactivateOverloadIndicator();
+                    switch (_elevator.State)
+                    {
+                        case ElevatorState.Idle:
+                            stateText = "Ожидание";
+                            backgroundColor = Color.FromRgb(173, 216, 230);
+                            break;
+                        case ElevatorState.MovingUp:
+                            stateText = $"Движение вверх → этаж {_elevator.TargetFloors.FirstOrDefault()}";
+                            backgroundColor = Color.FromRgb(144, 238, 144);
+                            break;
+                        case ElevatorState.MovingDown:
+                            stateText = $"Движение вниз → этаж {_elevator.TargetFloors.FirstOrDefault()}";
+                            backgroundColor = Color.FromRgb(144, 238, 144);
+                            break;
+                        case ElevatorState.DoorsOpen:
+                            stateText = "Двери открыты";
+                            backgroundColor = Color.FromRgb(255, 228, 181);
+                            break;
+                        default:
+                            stateText = "Неизвестно";
+                            backgroundColor = Color.FromRgb(173, 216, 230);
+                            break;
+                    }
                 }
 
-                // Люди в лифте
+                _elevatorVisual.Background = new SolidColorBrush(backgroundColor);
+
                 if (_elevator.PeopleInside.Count > 0)
                 {
-                    var ids = new List<string>();
-                    foreach (var person in _elevator.PeopleInside)
-                    {
-                        ids.Add(person.Id.ToString());
-                    }
+                    var ids = _elevator.PeopleInside.Select(p => p.Id.ToString());
+                    string overloadStatus = (_showOverloadIndicator || _elevator.State == ElevatorState.Overloaded) ?
+                        $"ПЕРЕГРУЗКА! Вес: {_elevator.CurrentWeight:F1} кг\n" :
+                        $"Вес: {_elevator.CurrentWeight:F1} кг\n";
+
                     _elevatorPeopleText.Text = $"Люди внутри: {string.Join(", ", ids)}\n" +
-                                              $"Вес: {_elevator.CurrentWeight:F1} кг\n" +
+                                              overloadStatus +
                                               $"Состояние: {stateText}";
                 }
                 else
@@ -806,24 +805,386 @@ namespace ElevatorSim
                 CurrentFloorText.Text = _elevator.CurrentFloor.ToString();
                 WeightText.Text = $"{_elevator.CurrentWeight:F1} кг";
                 TransportedCountText.Text = _transportedCount.ToString();
-
-                // Кнопка Стоп доступна только когда лифт пустой
                 StopButton.IsEnabled = (_elevator.PeopleInside.Count == 0);
 
-                // Визуальное оформление кнопки Стоп
                 if (StopButton.IsEnabled)
                 {
-                    StopButton.Background = new SolidColorBrush(Color.FromRgb(220, 53, 69)); // Красный
+                    StopButton.Background = new SolidColorBrush(Color.FromRgb(220, 53, 69));
                     StopButton.Foreground = Brushes.White;
-                    StopButton.ToolTip = "Остановить симуляцию";
                 }
                 else
                 {
-                    StopButton.Background = new SolidColorBrush(Color.FromRgb(200, 200, 200)); // Серый
+                    StopButton.Background = new SolidColorBrush(Color.FromRgb(200, 200, 200));
                     StopButton.Foreground = Brushes.Gray;
-                    StopButton.ToolTip = "Невозможно остановить: в лифте есть люди";
                 }
             });
+        }
+
+        // Таймер обновления статуса
+        private void StatusTimer_Tick(object sender, EventArgs e)
+        {
+            if (!_systemStopped)
+            {
+                UpdateElapsedTime();
+            }
+        }
+
+        // Обновление прошедшего времени
+        private void UpdateElapsedTime()
+        {
+            if (_simulationTimer.IsEnabled)
+            {
+                TimeSpan elapsedTime = DateTime.Now - _systemStartTime;
+                ElapsedTimeText.Text = $"{elapsedTime:mm\\:ss}";
+            }
+            else
+            {
+                ElapsedTimeText.Text = "00:00";
+            }
+        }
+
+        // Добавление нового человека
+        public void AddNewPerson(Person person)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _allPeople.Add(person);
+                _totalPeopleCreated++;
+
+                // Проверяем защиту от зацикливания
+                if (!IsCallAllowedFromFloor(person.CurrentFloor))
+                {
+                    UpdateStatus($"Внимание! На этаже {person.CurrentFloor} активна защита от зацикливания. Кнопка вызова не нажата.");
+                    return;
+                }
+
+                if (_callButtons.ContainsKey(person.CurrentFloor))
+                {
+                    PressCallButton(person.CurrentFloor);
+                    if (!_elevator.TargetFloors.Contains(person.CurrentFloor))
+                    {
+                        _elevator.AddTargetFloor(person.CurrentFloor);
+                        SortTargetFloors();
+                    }
+                }
+
+                UpdateStatus($"Создан новый человек ID {person.Id} на этаже {person.CurrentFloor}");
+                UpdateInfoPanel();
+            });
+        }
+
+        // Таймер очистки доставленных людей
+        private void CleanupTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                if (_systemStopped) return;
+
+                var peopleToRemove = _allPeople.Where(p => p.State == PersonState.Delivered &&
+                                                          (DateTime.Now - p.DeliveryTime).TotalSeconds >= 5).ToList();
+
+                foreach (var person in peopleToRemove)
+                {
+                    _allPeople.Remove(person);
+                    AddLog($"Человек ID {person.Id} удален из системы");
+                }
+
+                UpdateInfoPanel();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка в CleanupTimer: {ex.Message}");
+            }
+        }
+
+        // Основной таймер симуляции
+        private void SimulationTimer_Tick(object sender, EventArgs e)
+        {
+            if (_systemStopped || _isProcessingOverload) return;
+
+            _currentTime++;
+
+            try
+            {
+                // Автоматические вызовы для ожидающих людей (с проверкой защиты)
+                foreach (var person in _allPeople.Where(p => p.State == PersonState.Waiting))
+                {
+                    if (!_elevator.TargetFloors.Contains(person.CurrentFloor) &&
+                        IsCallAllowedFromFloor(person.CurrentFloor))
+                    {
+                        PressCallButton(person.CurrentFloor);
+                        _elevator.AddTargetFloor(person.CurrentFloor);
+                        SortTargetFloors();
+                    }
+                }
+
+                // Обновление текущего этажа для людей в лифте
+                foreach (var person in _elevator.PeopleInside)
+                {
+                    person.CurrentFloor = _elevator.CurrentFloor;
+                }
+
+                // Обработка состояния лифта
+                switch (_elevator.State)
+                {
+                    case ElevatorState.Idle:
+                        ProcessIdleState();
+                        break;
+                    case ElevatorState.MovingUp:
+                        ProcessMovingUpState();
+                        break;
+                    case ElevatorState.MovingDown:
+                        ProcessMovingDownState();
+                        break;
+                    case ElevatorState.DoorsOpen:
+                        ProcessDoorsOpenState();
+                        break;
+                    case ElevatorState.Overloaded:
+                        ProcessOverloadedState();
+                        break;
+                }
+
+                UpdateVisuals();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Ошибка в симуляции: {ex.Message}");
+            }
+        }
+
+        // Состояние "Ожидание"
+        private void ProcessIdleState()
+        {
+            if (_elevator.IsOverloaded)
+            {
+                _elevator.State = ElevatorState.Overloaded;
+                return;
+            }
+
+            if (_elevator.TargetFloors.Count > 0)
+            {
+                int nextTarget = _elevator.TargetFloors[0];
+
+                if (nextTarget == _elevator.CurrentFloor)
+                {
+                    _elevator.State = ElevatorState.DoorsOpen;
+                    UpdateStatus($"Лифт прибыл на этаж {nextTarget}. Двери открываются.");
+                    return;
+                }
+
+                if (nextTarget > _elevator.CurrentFloor)
+                {
+                    if (_elevator.CurrentDirection != Direction.Up)
+                    {
+                        _totalTrips++;
+                        if (_elevator.PeopleInside.Count == 0) _emptyTrips++;
+                        _lastDirection = Direction.Up;
+                    }
+
+                    _elevator.CurrentDirection = Direction.Up;
+                    _elevator.State = ElevatorState.MovingUp;
+                    UpdateStatus($"Лифт начал движение ВВЕРХ к этажу {nextTarget}");
+                }
+                else
+                {
+                    if (_elevator.CurrentDirection != Direction.Down)
+                    {
+                        _totalTrips++;
+                        if (_elevator.PeopleInside.Count == 0) _emptyTrips++;
+                        _lastDirection = Direction.Down;
+                    }
+
+                    _elevator.CurrentDirection = Direction.Down;
+                    _elevator.State = ElevatorState.MovingDown;
+                    UpdateStatus($"Лифт начал движение ВНИЗ к этажу {nextTarget}");
+                }
+            }
+        }
+
+        // Состояние "Движение вверх"
+        private void ProcessMovingUpState()
+        {
+            if (_elevator.IsOverloaded)
+            {
+                _elevator.State = ElevatorState.Overloaded;
+                return;
+            }
+
+            _elevator.CurrentFloor++;
+
+            if (_elevator.CurrentFloor > _initData.TotalFloors)
+            {
+                _elevator.CurrentFloor = _initData.TotalFloors;
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus($"Достигнут верхний этаж {_initData.TotalFloors}");
+                return;
+            }
+
+            if (_elevator.TargetFloors.Contains(_elevator.CurrentFloor))
+            {
+                _elevator.State = ElevatorState.DoorsOpen;
+                UpdateStatus($"Лифт прибыл на этаж {_elevator.CurrentFloor}. Двери открываются.");
+            }
+            else
+            {
+                UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
+            }
+        }
+
+        // Состояние "Движение вниз"
+        private void ProcessMovingDownState()
+        {
+            if (_elevator.IsOverloaded)
+            {
+                _elevator.State = ElevatorState.Overloaded;
+                return;
+            }
+
+            _elevator.CurrentFloor--;
+
+            if (_elevator.CurrentFloor < 1)
+            {
+                _elevator.CurrentFloor = 1;
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus($"Достигнут нижний этаж 1");
+                return;
+            }
+
+            if (_elevator.TargetFloors.Contains(_elevator.CurrentFloor))
+            {
+                _elevator.State = ElevatorState.DoorsOpen;
+                UpdateStatus($"Лифт прибыл на этаж {_elevator.CurrentFloor}. Двери открываются.");
+            }
+            else
+            {
+                UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
+            }
+        }
+
+        // Состояние "Перегрузка"
+        private void ProcessOverloadedState()
+        {
+            UpdateStatus($"ПЕРЕГРУЗКА! Вес: {_elevator.CurrentWeight:F1} кг. Ожидание выхода людей...");
+
+            // Если перегрузка устранена, меняем состояние
+            if (!_elevator.IsOverloaded)
+            {
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus("Перегрузка устранена. Лифт готов к работе.");
+            }
+        }
+
+        // Состояние "Двери открыты" - ИСПРАВЛЕННАЯ ВЕРСИЯ
+        private void ProcessDoorsOpenState()
+        {
+            // Высадка людей по целевому этажу
+            var peopleToExit = _elevator.PeopleInside.Where(p => p.TargetFloor == _elevator.CurrentFloor).ToList();
+            foreach (var person in peopleToExit)
+            {
+                _elevator.RemovePerson(person);
+                _transportedCount++;
+                _totalWeightMoved += person.Weight;
+                person.State = PersonState.Delivered;
+                person.CurrentFloor = _elevator.CurrentFloor;
+
+                UpdateStatus($"Человек {person.Id} вышел на этаже {_elevator.CurrentFloor} (доставлен)");
+                ReleaseElevatorFloorButton(_elevator.CurrentFloor);
+            }
+
+            // Снимаем вызов на этом этаже
+            ReleaseCallButton(_elevator.CurrentFloor);
+            _elevator.RemoveTargetFloor(_elevator.CurrentFloor);
+
+            // ПОСАДКА ЛЮДЕЙ - с защитой от зацикливания
+            // Проверяем, не действует ли защита от зацикливания на этом этаже
+            if (_isOverloadCooldown && _lastOverloadFloor == _elevator.CurrentFloor)
+            {
+                UpdateStatus($"Защита от зацикливания активна на этаже {_elevator.CurrentFloor}. Посадка временно запрещена.");
+
+                // Пропускаем посадку и сразу закрываем двери
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus("Двери закрываются. Ожидание новых вызовов.");
+                return;
+            }
+
+            var peopleToEnter = _allPeople.Where(p => p.State == PersonState.Waiting &&
+                                                     p.CurrentFloor == _elevator.CurrentFloor).ToList();
+
+            bool peopleEntered = false;
+            bool overloadOccurred = false;
+
+            foreach (var person in peopleToEnter)
+            {
+                // Разрешаем вход без проверки веса
+                _lastEnteredPerson = person;
+                bool causedOverload = _elevator.AddPerson(person);
+                person.State = PersonState.InElevator;
+                peopleEntered = true;
+
+                UpdateStatus($"Человек {person.Id} вошел в лифт (вес: {person.Weight} кг)");
+
+                // Если возникла перегрузка
+                if (_elevator.IsOverloaded)
+                {
+                    overloadOccurred = true;
+                    UpdateStatus($"ПЕРЕГРУЗКА! Человек {person.Id} вызвал перегрузку. Вес: {_elevator.CurrentWeight:F1} кг");
+                    _elevator.State = ElevatorState.Overloaded;
+
+                    // Принудительно высаживаем последнего вошедшего
+                    _elevator.RemovePerson(person);
+                    // ВАЖНО: Меняем состояние на специальное "Rejected" вместо "Waiting"
+                    person.State = PersonState.Waiting;
+                    person.CurrentFloor = _elevator.CurrentFloor;
+
+                    UpdateStatus($"Человек {person.Id} не смог войти из-за перегрузки");
+
+                    // Включаем защиту от зацикливания
+                    ActivateOverloadProtection();
+
+                    break; // Прерываем посадку, если произошла перегрузка
+                }
+                else
+                {
+                    // Если перегрузки нет, добавляем цель этажа
+                    PressElevatorFloorButton(person.TargetFloor);
+                    if (!_elevator.TargetFloors.Contains(person.TargetFloor))
+                    {
+                        _elevator.AddTargetFloor(person.TargetFloor);
+                        SortTargetFloors();
+                    }
+                    UpdateStatus($"Человек {person.Id} направляется на этаж {person.TargetFloor}");
+                }
+            }
+
+            // Обработка результатов посадки
+            if (overloadOccurred)
+            {
+                // Если была перегрузка, останавливаем систему на 1 секунду
+                _isProcessingOverload = true;
+                _simulationTimer.Stop();
+                _overloadTimer.Start();
+                UpdateStatus($"Перегрузка! Система приостановлена на 1 секунду.");
+            }
+            else if (peopleEntered && _elevator.PeopleInside.Count > 0)
+            {
+                // Если люди успешно вошли, начинаем движение через 2 секунды
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                timer.Tick += (s, args) =>
+                {
+                    timer.Stop();
+
+                    // Закрываем двери и начинаем движение
+                    _elevator.State = ElevatorState.Idle;
+                    UpdateStatus("Двери закрываются. Начинаем движение.");
+                };
+                timer.Start();
+            }
+            else
+            {
+                // Если никто не вошел, просто закрываем двери
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus("Двери закрываются. Ожидание новых вызовов.");
+            }
         }
 
         // Обновление статуса
@@ -849,12 +1210,9 @@ namespace ElevatorSim
                         _logTextBox.AppendText($"[{timestamp}] {message}\n");
                         _logTextBox.ScrollToEnd();
 
-                        // Ограничиваем количество строк в логе (последние 100)
                         var lines = _logTextBox.Text.Split('\n');
                         if (lines.Length > 100)
-                        {
                             _logTextBox.Text = string.Join("\n", lines.Skip(lines.Length - 100));
-                        }
                     }
                 });
             }
@@ -864,340 +1222,7 @@ namespace ElevatorSim
             }
         }
 
-        // Основная логика симуляции
-        private void SimulationTimer_Tick(object sender, EventArgs e)
-{
-    if (_systemStopped) return;
-
-    _currentTime++;
-
-    try
-    {
-        // 0. Если лифт в состоянии перегрузки, проверяем можно ли выйти из него
-        if (_elevator.State == ElevatorState.Overloaded)
-        {
-            if (!_elevator.IsOverloaded)
-            {
-                // Перегрузка устранена
-                _elevator.State = ElevatorState.Idle;
-                UpdateStatus("Перегрузка устранена. Готов к работе.");
-            }
-            else
-            {
-                // Все еще перегрузка - остаемся в этом состоянии
-                UpdateStatus($"ПЕРЕГРУЗКА! Вес: {_elevator.CurrentWeight:F1} кг (макс. 400 кг)");
-            }
-            UpdateVisuals();
-            return; // Не обрабатываем другие состояния пока перегрузка
-        }
-
-        // 1. Автоматически нажимаем кнопки вызова для ожидающих людей
-        foreach (var person in _allPeople.Where(p => p.State == PersonState.Waiting))
-        {
-            if (!_elevator.TargetFloors.Contains(person.CurrentFloor))
-            {
-                PressCallButton(person.CurrentFloor);
-                _elevator.TargetFloors.Add(person.CurrentFloor);
-                SortTargetFloors();
-            }
-        }
-
-        // 2. Обновляем текущий этаж для людей в лифте
-        foreach (var person in _elevator.PeopleInside)
-        {
-            person.CurrentFloor = _elevator.CurrentFloor;
-        }
-
-        // 3. Обрабатываем текущее состояние лифта
-        switch (_elevator.State)
-        {
-            case ElevatorState.Idle:
-                ProcessIdleState();
-                break;
-
-            case ElevatorState.MovingUp:
-                ProcessMovingUpState();
-                break;
-
-            case ElevatorState.MovingDown:
-                ProcessMovingDownState();
-                break;
-
-            case ElevatorState.DoorsOpen:
-                ProcessDoorsOpenState();
-                break;
-
-            case ElevatorState.Overloaded:
-
-                break;
-        }
-
-        UpdateVisuals();
-    }
-    catch (Exception ex)
-    {
-        AddLog($"Ошибка в симуляции: {ex.Message}");
-    }
-}
-
-        // Обработка состояния "Ожидание"
-        private void ProcessIdleState()
-        {
-            // Если есть цели - начинаем движение
-            if (_elevator.TargetFloors.Count > 0)
-            {
-                int nextTarget = _elevator.TargetFloors[0];
-
-                // Проверяем, не находимся ли уже на целевом этаже
-                if (nextTarget == _elevator.CurrentFloor)
-                {
-                    // Если уже на целевом этаже, открываем двери
-                    _elevator.State = ElevatorState.DoorsOpen;
-                    UpdateStatus($"Лифт прибыл на этаж {nextTarget}. Двери открываются.");
-                    return;
-                }
-
-                if (nextTarget > _elevator.CurrentFloor)
-                {
-                    // Учет смены направления
-                    if (_elevator.CurrentDirection != Direction.Up)
-                    {
-                        _totalTrips++;
-                        if (_elevator.PeopleInside.Count == 0) _emptyTrips++;
-                        _lastDirection = Direction.Up;
-                    }
-
-                    _elevator.CurrentDirection = Direction.Up;
-                    _elevator.State = ElevatorState.MovingUp;
-                    UpdateStatus($"Лифт начал движение ВВЕРХ к этажу {nextTarget}");
-                }
-                else if (nextTarget < _elevator.CurrentFloor)
-                {
-                    // Учет смены направления
-                    if (_elevator.CurrentDirection != Direction.Down)
-                    {
-                        _totalTrips++;
-                        if (_elevator.PeopleInside.Count == 0) _emptyTrips++;
-                        _lastDirection = Direction.Down;
-                    }
-
-                    _elevator.CurrentDirection = Direction.Down;
-                    _elevator.State = ElevatorState.MovingDown;
-                    UpdateStatus($"Лифт начал движение ВНИЗ к этажу {nextTarget}");
-                }
-            }
-        }
-
-        // Обработка состояния "Движение вверх"
-        private void ProcessMovingUpState()
-        {
-            // Двигаем лифт вверх
-            _elevator.CurrentFloor++;
-
-            // Проверяем верхнюю границу
-            if (_elevator.CurrentFloor > _initData.TotalFloors)
-            {
-                _elevator.CurrentFloor = _initData.TotalFloors;
-                _elevator.State = ElevatorState.Idle;
-                UpdateStatus($"Достигнут верхний этаж {_initData.TotalFloors}");
-                return;
-            }
-
-            // Проверяем, достигли ли цели
-            if (_elevator.TargetFloors.Contains(_elevator.CurrentFloor))
-            {
-                _elevator.State = ElevatorState.DoorsOpen;
-                UpdateStatus($"Лифт прибыл на этаж {_elevator.CurrentFloor}. Двери открываются.");
-            }
-            else
-            {
-                // Не засоряем лог сообщениями о каждом этаже
-                if (_currentTime % 1 == 0) 
-                    UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
-            }
-        }
-
-        // Обработка состояния "Движение вниз"
-        private void ProcessMovingDownState()
-        {
-            // Двигаем лифт вниз
-            _elevator.CurrentFloor--;
-
-            // Проверяем нижнюю границу
-            if (_elevator.CurrentFloor < 1)
-            {
-                _elevator.CurrentFloor = 1;
-                _elevator.State = ElevatorState.Idle;
-                UpdateStatus($"Достигнут нижний этаж 1");
-                return;
-            }
-
-            // Проверяем, достигли ли цели
-            if (_elevator.TargetFloors.Contains(_elevator.CurrentFloor))
-            {
-                _elevator.State = ElevatorState.DoorsOpen;
-                UpdateStatus($"Лифт прибыл на этаж {_elevator.CurrentFloor}. Двери открываются.");
-            }
-            else
-            {
-                // Не засоряем лог сообщениями о каждом этаже
-                if (_currentTime % 1 == 0) 
-                    UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
-            }
-        }
-
-        // Обработка состояния "Двери открыты"
-        private void ProcessDoorsOpenState()
-        {
-            // Шаг 1: Высадка людей
-            var peopleToExit = new List<Person>();
-            foreach (var person in _elevator.PeopleInside)
-            {
-                if (person.TargetFloor == _elevator.CurrentFloor)
-                {
-                    peopleToExit.Add(person);
-                }
-            }
-
-            foreach (var person in peopleToExit)
-            {
-                person.State = PersonState.Delivered;
-                person.CurrentFloor = _elevator.CurrentFloor;
-                _elevator.PeopleInside.Remove(person);
-                _transportedCount++;
-
-                // Учитываем перемещенный вес
-                _totalWeightMoved += person.Weight;
-
-                UpdateStatus($"Человек {person.Id} вышел на этаже {_elevator.CurrentFloor}");
-
-                // Отжимаем кнопку этажа в лифте
-                ReleaseElevatorFloorButton(_elevator.CurrentFloor);
-            }
-
-            // Шаг 2: Снимаем вызов на этом этаже
-            ReleaseCallButton(_elevator.CurrentFloor);
-            _elevator.TargetFloors.Remove(_elevator.CurrentFloor);
-
-            // Шаг 3: Посадка людей
-            var peopleToEnter = new List<Person>();
-            foreach (var person in _allPeople)
-            {
-                if (person.State == PersonState.Waiting &&
-                    person.CurrentFloor == _elevator.CurrentFloor &&
-                    !_elevator.IsOverloaded)
-                {
-                    peopleToEnter.Add(person);
-                }
-            }
-
-            bool peopleEntered = false;
-            foreach (var person in peopleToEnter)
-            {
-                // Проверяем вес
-                if (_elevator.CurrentWeight + person.Weight <= 400)
-                {
-                    person.State = PersonState.InElevator;
-                    _elevator.PeopleInside.Add(person);
-                    peopleEntered = true;
-
-                    // 1. Автоматически нажимаем кнопку целевого этажа в лифте
-                    PressElevatorFloorButton(person.TargetFloor);
-
-                    // 2. Добавляем этаж в цели, если его там нет
-                    if (!_elevator.TargetFloors.Contains(person.TargetFloor))
-                    {
-                        _elevator.TargetFloors.Add(person.TargetFloor);
-                        SortTargetFloors();
-                    }
-
-                    UpdateStatus($"Человек {person.Id} вошел в лифт (вес: {person.Weight} кг) → нажата кнопка этажа {person.TargetFloor}");
-                }
-                else
-                {
-                    // При попытке войти при перегрузке
-                    UpdateStatus($"Человек {person.Id} не может войти: перегрузка!");
-
-                    // Активируем индикатор перегрузки на 1 секунду
-                    ActivateOverloadIndicator();
-                    DispatcherTimer overloadTimer = new DispatcherTimer();
-                    overloadTimer.Interval = TimeSpan.FromSeconds(1);
-                    overloadTimer.Tick += (s, args) =>
-                    {
-                        overloadTimer.Stop();
-                        if (!_elevator.IsOverloaded)
-                        {
-                            DeactivateOverloadIndicator();
-                        }
-                    };
-                    overloadTimer.Start();
-                }
-            }
-
-            // Шаг 4: Если люди вошли в лифт, запускаем таймер для кнопки ХОД
-            if (peopleEntered && _elevator.PeopleInside.Count > 0 && _pressedFloorButtons.Count > 0)
-            {
-                // Ждем 1 секунду перед "нажатием" кнопки ХОД
-                DispatcherTimer startTimer = new DispatcherTimer();
-                startTimer.Interval = TimeSpan.FromSeconds(1);
-                startTimer.Tick += (s, args) =>
-                {
-                    startTimer.Stop();
-
-                    // Нажимаем кнопку ХОД
-                    PressStartMovementButton();
-                    UpdateStatus("Кнопка 'ХОД' нажата - начинаем движение");
-
-                    // Еще через 1 секунду отжимаем и начинаем движение
-                    DispatcherTimer moveTimer = new DispatcherTimer();
-                    moveTimer.Interval = TimeSpan.FromSeconds(1);
-                    moveTimer.Tick += (s2, args2) =>
-                    {
-                        moveTimer.Stop();
-
-                        // Отжимаем кнопку ХОД
-                        ReleaseStartMovementButton();
-
-                        // Закрываем двери и начинаем движение
-                        _elevator.State = ElevatorState.Idle;
-                        UpdateStatus("Двери закрываются. Начинаем движение.");
-                    };
-                    moveTimer.Start();
-                };
-                startTimer.Start();
-            }
-            else
-            {
-                // Если никто не вошел в лифт, просто закрываем двери
-                _elevator.State = ElevatorState.Idle;
-                UpdateStatus("Двери закрываются. Ожидание новых вызовов.");
-            }
-
-            // Проверяем перегрузку
-            if (_elevator.IsOverloaded)
-            {
-                _elevator.State = ElevatorState.Overloaded;
-                UpdateStatus("ПЕРЕГРУЗКА! Лифт не может двигаться.");
-            }
-        }
-
-        // Обработка состояния "Перегрузка"
-        private void ProcessOverloadedState()
-        {
-            UpdateStatus("Лифт перегружен. Требуется освободить место.");
-
-            // Меняем состояние лифта на "Перегрузка"
-            _elevator.State = ElevatorState.Overloaded;
-
-            // Активируем индикатор перегрузки
-            ActivateOverloadIndicator();
-
-
-            // НЕ создаем таймер - индикатор будет гореть пока есть перегрузка
-            // Состояние перегрузки будет проверяться в основном таймере SimulationTimer_Tick
-        }
-
-        // Обработчик кнопки "Создать человека"
+        // Обработчики кнопок
         private void CreatePersonButton_Click(object sender, RoutedEventArgs e)
         {
             var createWindow = new CreatePersonWindow(this, _initData.TotalFloors);
@@ -1205,7 +1230,6 @@ namespace ElevatorSim
             createWindow.ShowDialog();
         }
 
-        #region Обработчики кнопок
         private void StartButton_Click(object sender, RoutedEventArgs e)
         {
             _systemStopped = false;
@@ -1213,21 +1237,15 @@ namespace ElevatorSim
             _simulationTimer.Start();
             _cleanupTimer.Start();
             _statusTimer.Start();
-            _overloadTimer.Start();
             UpdateStatus("Симуляция запущена");
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = (_elevator.PeopleInside.Count == 0);
             CreatePersonButton.IsEnabled = true;
             UpdateElapsedTime();
-            if (_elevator.IsOverloaded)
-            {
-                ActivateOverloadIndicator();
-            }
         }
 
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
-            // Проверяем, что лифт пустой (единственное ограничение)
             if (_elevator.PeopleInside.Count > 0)
             {
                 MessageBox.Show("Невозможно остановить систему: в лифте находятся люди!",
@@ -1235,7 +1253,6 @@ namespace ElevatorSim
                 return;
             }
 
-            // Подтверждение остановки
             var result = MessageBox.Show("Вы уверены, что хотите остановить симуляцию?",
                 "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
@@ -1246,8 +1263,9 @@ namespace ElevatorSim
             _cleanupTimer.Stop();
             _statusTimer.Stop();
             _overloadTimer.Stop();
+            _overloadIndicatorTimer.Stop();
+            _overloadCooldownTimer.Stop();
 
-            // Создаем окно отчета
             var reportWindow = new ReportWindow(
                 _totalTrips,
                 _emptyTrips,
@@ -1256,8 +1274,6 @@ namespace ElevatorSim
 
             reportWindow.Owner = this;
             reportWindow.Show();
-
-            // Скрываем текущее окно
             this.Hide();
         }
 
@@ -1268,10 +1284,11 @@ namespace ElevatorSim
             _cleanupTimer?.Stop();
             _statusTimer?.Stop();
             _overloadTimer?.Stop();
+            _overloadIndicatorTimer?.Stop();
+            _overloadCooldownTimer?.Stop();
         }
-        #endregion
 
-        // Метод для начала новой симуляции (вызывается из ReportWindow)
+        // Метод для начала новой симуляции
         public void StartNewSimulation()
         {
             var initWindow = new InitializationWindow();
