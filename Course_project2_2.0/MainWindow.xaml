@@ -56,7 +56,6 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" HorizontalAlignment="Center">
@@ -65,21 +64,16 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                    <TextBlock Text="Состояние:" FontWeight="Bold" FontSize="12"/>
-                    <TextBlock x:Name="ElevatorStateText" Text="Ожидание" FontSize="14" FontWeight="SemiBold"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                     <TextBlock Text="Вес в лифте:" FontWeight="Bold" FontSize="12"/>
                     <TextBlock x:Name="WeightText" Text="0 кг" FontSize="16" FontWeight="SemiBold"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="3" HorizontalAlignment="Center">
+                <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                     <TextBlock Text="Время работы:" FontWeight="Bold" FontSize="12"/>
                     <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontSize="16" FontWeight="SemiBold"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="4" HorizontalAlignment="Center">
+                <StackPanel Grid.Column="3" HorizontalAlignment="Center">
                     <TextBlock Text="Перевезено людей:" FontWeight="Bold" FontSize="12"/>
                     <TextBlock x:Name="TransportedCountText" Text="0" FontSize="20" FontWeight="Bold" Foreground="#28A745"/>
                 </StackPanel>

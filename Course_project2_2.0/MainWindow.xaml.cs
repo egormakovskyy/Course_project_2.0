@@ -270,7 +270,7 @@ namespace ElevatorSim
                     Padding = new Thickness(8, 8, 8, 8),
                     CornerRadius = new CornerRadius(5),
                     Background = Brushes.White,
-                    Width = 220 // УДЛИНЕНО для надписи "Этаж 2 [ЛИФТ]"
+                    Width = 220 
                 };
 
                 var floorGrid = new Grid();
@@ -291,16 +291,15 @@ namespace ElevatorSim
                 var callButton = new Button
                 {
                     Content = "Вызов",
-                    Width = 70, // УДЛИНЕНО
+                    Width = 70, 
                     Height = 28,
-                    Background = new SolidColorBrush(Color.FromRgb(100, 149, 237)), // Приятный голубой - CornflowerBlue
-                    Foreground = Brushes.White,
-                    BorderBrush = Brushes.RoyalBlue,
+                    Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
+                    Foreground = Brushes.Black,
+                    BorderBrush = Brushes.Gray,
                     BorderThickness = new Thickness(1, 1, 1, 1),
                     Tag = floorNum,
                     FontSize = 11,
                     FontWeight = FontWeights.Medium,
-                    IsEnabled = false
                 };
 
                 Grid.SetColumn(floorText, 0);
@@ -369,17 +368,16 @@ namespace ElevatorSim
                     var button = new Button
                     {
                         Content = $"{floor}",
-                        Width = 45, // УДЛИНЕНО
+                        Width = 45, 
                         Height = 38,
                         Margin = new Thickness(3, 3, 3, 3),
-                        Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)), // Серый по умолчанию
+                        Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)), 
                         Foreground = Brushes.Black,
                         BorderBrush = Brushes.Gray,
                         BorderThickness = new Thickness(1, 1, 1, 1),
                         Tag = floor,
                         FontWeight = FontWeights.Bold,
                         FontSize = 13,
-                        IsEnabled = false
                     };
 
                     _elevatorFloorButtons[floor] = button;
@@ -446,7 +444,6 @@ namespace ElevatorSim
                 BorderThickness = new Thickness(2, 2, 2, 2),
                 FontWeight = FontWeights.Bold,
                 FontSize = 14,
-                IsEnabled = false
             };
             controlPanel.Children.Add(_startMovementButton);
 
@@ -582,11 +579,10 @@ namespace ElevatorSim
                 if (_callButtons.ContainsKey(floor))
                 {
                     var button = _callButtons[floor];
-                    // Приятный голубой цвет при активном вызове - CornflowerBlue
                     button.Background = new SolidColorBrush(Color.FromRgb(100, 149, 237));
                     button.Foreground = Brushes.White;
                     button.BorderBrush = Brushes.RoyalBlue;
-                    button.Content = "Вызов ✓";
+                    button.Content = "Вызов";
                 }
             });
         }
@@ -600,9 +596,9 @@ namespace ElevatorSim
                 {
                     var button = _callButtons[floor];
                     // Возвращаем исходный цвет
-                    button.Background = new SolidColorBrush(Color.FromRgb(100, 149, 237)); // Остается голубым
-                    button.Foreground = Brushes.White;
-                    button.BorderBrush = Brushes.RoyalBlue;
+                    button.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+                    button.Foreground = Brushes.Black;
+                    button.BorderBrush = Brushes.Gray;
                     button.Content = "Вызов";
                 }
             });
@@ -619,7 +615,7 @@ namespace ElevatorSim
                     // Приятный красный цвет при нажатии
                     button.Background = new SolidColorBrush(Color.FromRgb(220, 53, 69)); // Красный
                     button.Foreground = Brushes.White;
-                    button.BorderBrush = Brushes.DarkRed;
+                    button.BorderBrush = Brushes.Red;
                     button.BorderThickness = new Thickness(2, 2, 2, 2);
 
                     if (!_pressedFloorButtons.Contains(floor))
@@ -808,7 +804,6 @@ namespace ElevatorSim
             Dispatcher.Invoke(() =>
             {
                 CurrentFloorText.Text = _elevator.CurrentFloor.ToString();
-                ElevatorStateText.Text = _elevator.State.ToString();
                 WeightText.Text = $"{_elevator.CurrentWeight:F1} кг";
                 TransportedCountText.Text = _transportedCount.ToString();
 
@@ -871,61 +866,79 @@ namespace ElevatorSim
 
         // Основная логика симуляции
         private void SimulationTimer_Tick(object sender, EventArgs e)
+{
+    if (_systemStopped) return;
+
+    _currentTime++;
+
+    try
+    {
+        // 0. Если лифт в состоянии перегрузки, проверяем можно ли выйти из него
+        if (_elevator.State == ElevatorState.Overloaded)
         {
-            if (_systemStopped) return;
-
-            _currentTime++;
-
-            try
+            if (!_elevator.IsOverloaded)
             {
-                // 1. Автоматически нажимаем кнопки вызова для ожидающих людей
-                foreach (var person in _allPeople.Where(p => p.State == PersonState.Waiting))
-                {
-                    if (!_elevator.TargetFloors.Contains(person.CurrentFloor))
-                    {
-                        PressCallButton(person.CurrentFloor);
-                        _elevator.TargetFloors.Add(person.CurrentFloor);
-                        SortTargetFloors();
-                    }
-                }
-
-                // 2. Обновляем текущий этаж для людей в лифте
-                foreach (var person in _elevator.PeopleInside)
-                {
-                    person.CurrentFloor = _elevator.CurrentFloor;
-                }
-
-                // 3. Обрабатываем текущее состояние лифта
-                switch (_elevator.State)
-                {
-                    case ElevatorState.Idle:
-                        ProcessIdleState();
-                        break;
-
-                    case ElevatorState.MovingUp:
-                        ProcessMovingUpState();
-                        break;
-
-                    case ElevatorState.MovingDown:
-                        ProcessMovingDownState();
-                        break;
-
-                    case ElevatorState.DoorsOpen:
-                        ProcessDoorsOpenState();
-                        break;
-
-                    case ElevatorState.Overloaded:
-                        ProcessOverloadedState();
-                        break;
-                }
-
-                UpdateVisuals();
+                // Перегрузка устранена
+                _elevator.State = ElevatorState.Idle;
+                UpdateStatus("Перегрузка устранена. Готов к работе.");
             }
-            catch (Exception ex)
+            else
             {
-                AddLog($"Ошибка в симуляции: {ex.Message}");
+                // Все еще перегрузка - остаемся в этом состоянии
+                UpdateStatus($"ПЕРЕГРУЗКА! Вес: {_elevator.CurrentWeight:F1} кг (макс. 400 кг)");
+            }
+            UpdateVisuals();
+            return; // Не обрабатываем другие состояния пока перегрузка
+        }
+
+        // 1. Автоматически нажимаем кнопки вызова для ожидающих людей
+        foreach (var person in _allPeople.Where(p => p.State == PersonState.Waiting))
+        {
+            if (!_elevator.TargetFloors.Contains(person.CurrentFloor))
+            {
+                PressCallButton(person.CurrentFloor);
+                _elevator.TargetFloors.Add(person.CurrentFloor);
+                SortTargetFloors();
             }
         }
+
+        // 2. Обновляем текущий этаж для людей в лифте
+        foreach (var person in _elevator.PeopleInside)
+        {
+            person.CurrentFloor = _elevator.CurrentFloor;
+        }
+
+        // 3. Обрабатываем текущее состояние лифта
+        switch (_elevator.State)
+        {
+            case ElevatorState.Idle:
+                ProcessIdleState();
+                break;
+
+            case ElevatorState.MovingUp:
+                ProcessMovingUpState();
+                break;
+
+            case ElevatorState.MovingDown:
+                ProcessMovingDownState();
+                break;
+
+            case ElevatorState.DoorsOpen:
+                ProcessDoorsOpenState();
+                break;
+
+            case ElevatorState.Overloaded:
+
+                break;
+        }
+
+        UpdateVisuals();
+    }
+    catch (Exception ex)
+    {
+        AddLog($"Ошибка в симуляции: {ex.Message}");
+    }
+}
 
         // Обработка состояния "Ожидание"
         private void ProcessIdleState()
@@ -973,7 +986,6 @@ namespace ElevatorSim
                     UpdateStatus($"Лифт начал движение ВНИЗ к этажу {nextTarget}");
                 }
             }
-            // УБРАНО: постоянное сообщение об ожидании команд
         }
 
         // Обработка состояния "Движение вверх"
@@ -1000,7 +1012,7 @@ namespace ElevatorSim
             else
             {
                 // Не засоряем лог сообщениями о каждом этаже
-                if (_currentTime % 2 == 0) // Каждые 2 секунды
+                if (_currentTime % 1 == 0) 
                     UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
             }
         }
@@ -1029,7 +1041,7 @@ namespace ElevatorSim
             else
             {
                 // Не засоряем лог сообщениями о каждом этаже
-                if (_currentTime % 2 == 0) // Каждые 2 секунды
+                if (_currentTime % 1 == 0) 
                     UpdateStatus($"Лифт на этаже {_elevator.CurrentFloor}");
             }
         }
@@ -1174,28 +1186,15 @@ namespace ElevatorSim
         {
             UpdateStatus("Лифт перегружен. Требуется освободить место.");
 
+            // Меняем состояние лифта на "Перегрузка"
+            _elevator.State = ElevatorState.Overloaded;
+
             // Активируем индикатор перегрузки
             ActivateOverloadIndicator();
 
-            // Ждем 1 секунду (как в реальной жизни)
-            DispatcherTimer overloadTimer = new DispatcherTimer();
-            overloadTimer.Interval = TimeSpan.FromSeconds(1);
-            overloadTimer.Tick += (s, args) =>
-            {
-                overloadTimer.Stop();
-                if (!_elevator.IsOverloaded)
-                {
-                    _elevator.State = ElevatorState.Idle;
-                    DeactivateOverloadIndicator();
-                    UpdateStatus("Перегрузка устранена. Готов к работе.");
-                }
-                else
-                {
-                    // Если все еще перегрузка, продолжаем ожидание
-                    ProcessOverloadedState();
-                }
-            };
-            overloadTimer.Start();
+
+            // НЕ создаем таймер - индикатор будет гореть пока есть перегрузка
+            // Состояние перегрузки будет проверяться в основном таймере SimulationTimer_Tick
         }
 
         // Обработчик кнопки "Создать человека"
@@ -1220,6 +1219,10 @@ namespace ElevatorSim
             StopButton.IsEnabled = (_elevator.PeopleInside.Count == 0);
             CreatePersonButton.IsEnabled = true;
             UpdateElapsedTime();
+            if (_elevator.IsOverloaded)
+            {
+                ActivateOverloadIndicator();
+            }
         }
 
         private void StopButton_Click(object sender, RoutedEventArgs e)

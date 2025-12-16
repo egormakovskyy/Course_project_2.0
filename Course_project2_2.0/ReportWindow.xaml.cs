@@ -47,21 +47,6 @@ namespace ElevatorSim
                 EfficiencyText.Text = "Н/Д";
                 EfficiencyText.Foreground = System.Windows.Media.Brushes.Gray;
             }
-
-            // Дополнительная информация
-            AdditionalInfoText.Text = "Примечание:\n";
-            AdditionalInfoText.Text += "• Под поездкой понимается изменение направления движения\n";
-            AdditionalInfoText.Text += "• Холостая поездка - лифт двигался без пассажиров\n";
-            AdditionalInfoText.Text += "• Вес считается только для доставленных людей";
-
-            if (_emptyTrips == 0 && _totalTrips > 0)
-            {
-                AdditionalInfoText.Text += "\n\n✅ Отличная эффективность! Все поездки были с пассажирами.";
-            }
-            else if (_emptyTrips > _totalTrips / 2 && _totalTrips > 0)
-            {
-                AdditionalInfoText.Text += "\n\n⚠️ Много холостых поездок. Рассмотрите оптимизацию маршрутов.";
-            }
         }
 
         private void ExitButton_Click(object sender, RoutedEventArgs e)

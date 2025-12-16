@@ -115,8 +115,6 @@
 
         <!-- Кнопки -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
-            <Button x:Name="SaveReportButton" Content="Сохранить отчет" 
-                    Width="130" Height="35" Margin="10" Background="#6C757D" Foreground="White"/>
             <Button x:Name="ExitButton" Content="Выйти из приложения" 
                     Width="150" Height="35" Margin="10" Background="#DC3545" Foreground="White"
                     Click="ExitButton_Click"/>
