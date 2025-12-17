@@ -69,7 +69,7 @@
                     <TextBlock x:Name="WeightText" Text="0 кг" FontSize="16" FontWeight="SemiBold"/>
                 </StackPanel>
 
-                <!-- Индикатор перегрузки -->
+                <!-- Индикатор перегрузки (УБРАНЫ надписи "ДА/Нет") -->
                 <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                     <TextBlock Text="Перегрузка:" FontWeight="Bold" FontSize="12"/>
                     <Border x:Name="OverloadIndicator" 
@@ -87,7 +87,8 @@
                                    HorizontalAlignment="Center" 
                                    VerticalAlignment="Center"/>
                     </Border>
-                    <TextBlock x:Name="OverloadText" Text="Нет" FontSize="12" Margin="0,5,0,0"/>
+                    <!-- УБИРАЕМ текстовую метку "ДА/Нет" -->
+                    <TextBlock x:Name="OverloadText" Text="" FontSize="12" Margin="0,5,0,0"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="3" HorizontalAlignment="Center">

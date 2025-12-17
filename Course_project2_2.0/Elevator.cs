@@ -128,7 +128,7 @@ namespace ElevatorSim.Models
             return IsOverloaded;
         }
 
-        // Метод для удаления человека из лифта
+        // Метод для удаления человека из лифт
         public void RemovePerson(Person person)
         {
             PeopleInside.Remove(person);
@@ -142,11 +142,11 @@ namespace ElevatorSim.Models
 
     public enum ElevatorState
     {
-        Idle,         // Ожидание
-        MovingUp,     // Движение вверх
-        MovingDown,   // Движение вниз
-        DoorsOpen,    // Двери открыты
-        Overloaded    // Перегрузка
+        Idle,               // Стоит с закрытыми дверьми (заменили Ожидание)
+        MovingUp,           // Движение вверх
+        MovingDown,         // Движение вниз
+        DoorsOpen,          // Стоит с открытыми дверьми
+        Overloaded          // Перегрузка
     }
 
     public enum Direction

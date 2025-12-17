@@ -9,6 +9,7 @@ namespace ElevatorSim.Models
         private int _currentFloor;
         private DateTime _deliveryTime;
         private bool _scheduledForRemoval;
+        private DateTime _creationTime;
 
         public int Id { get; set; }
         public double Weight { get; set; }
@@ -52,6 +53,13 @@ namespace ElevatorSim.Models
 
         public DateTime DeliveryTime => _deliveryTime;
 
+        // Время создания человека
+        public DateTime CreationTime
+        {
+            get => _creationTime;
+            set => _creationTime = value;
+        }
+
         public bool ShouldBeRemoved
         {
             get
@@ -78,6 +86,7 @@ namespace ElevatorSim.Models
                 switch (State)
                 {
                     case PersonState.Waiting:
+                        // УБИРАЕМ сообщение о задержке - просто статус
                         return $"Ожидает на этаже {CurrentFloor} → этаж {TargetFloor}";
                     case PersonState.InElevator:
                         return $"В лифте → этаж {TargetFloor}";
@@ -108,10 +117,16 @@ namespace ElevatorSim.Models
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        // Метод для обновления статуса (вызывается из таймера)
+        // Метод для обновления статуса
         public void UpdateStatus()
         {
             OnPropertyChanged(nameof(Status));
+        }
+
+        // Конструктор по умолчанию
+        public Person()
+        {
+            _creationTime = DateTime.Now;
         }
     }
 

@@ -7,7 +7,6 @@ namespace ElevatorSim
 {
     public partial class InitializationWindow : Window
     {
-        // Класс для хранения данных о человеке
         public class Person
         {
             public int Id { get; set; }
@@ -15,6 +14,7 @@ namespace ElevatorSim
             public int CurrentFloor { get; set; }
             public int TargetFloor { get; set; }
             public string Direction => TargetFloor > CurrentFloor ? "Вверх" : TargetFloor < CurrentFloor ? "Вниз" : "На месте";
+            public DateTime CreationTime { get; set; } // Добавляем время создания
         }
 
         private ObservableCollection<Person> _people = new ObservableCollection<Person>();
@@ -27,12 +27,10 @@ namespace ElevatorSim
             PeopleDataGrid.ItemsSource = _people;
         }
 
-        // Кнопка "Добавить человека"
         private void AddPersonButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Получаем количество этажей для проверки
                 if (!int.TryParse(FloorsTextBox.Text, out int totalFloors) || totalFloors < 2)
                 {
                     MessageBox.Show("Сначала укажите корректное количество этажей (минимум 2)", "Ошибка",
@@ -40,14 +38,12 @@ namespace ElevatorSim
                     return;
                 }
 
-                // Создаем окно для создания человека
                 var createWindow = new CreatePersonWindow(this, totalFloors)
                 {
                     Owner = this,
                     WindowStartupLocation = WindowStartupLocation.CenterOwner
                 };
 
-                // Показываем окно и ждем результата
                 createWindow.ShowDialog();
             }
             catch (Exception ex)
@@ -57,7 +53,6 @@ namespace ElevatorSim
             }
         }
 
-        // Метод для добавления человека из CreatePersonWindow
         public void AddPersonFromDialog(double weight, int currentFloor, int targetFloor)
         {
             try
@@ -67,7 +62,8 @@ namespace ElevatorSim
                     Id = _nextPersonId++,
                     Weight = weight,
                     CurrentFloor = currentFloor,
-                    TargetFloor = targetFloor
+                    TargetFloor = targetFloor,
+                    CreationTime = DateTime.Now // Устанавливаем время создания
                 };
 
                 _people.Add(person);
@@ -79,7 +75,6 @@ namespace ElevatorSim
             }
         }
 
-        // Кнопка "Удалить выбранного"
         private void RemovePersonButton_Click(object sender, RoutedEventArgs e)
         {
             if (PeopleDataGrid.SelectedItem is Person selectedPerson)
@@ -93,12 +88,10 @@ namespace ElevatorSim
             }
         }
 
-        // Кнопка "Инициализировать систему"
         private void InitializeButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Проверка количества этажей
                 if (!int.TryParse(FloorsTextBox.Text, out int totalFloors) || totalFloors < 2)
                 {
                     MessageBox.Show("Введите корректное количество этажей (минимум 2)", "Ошибка",
@@ -106,7 +99,6 @@ namespace ElevatorSim
                     return;
                 }
 
-                // Проверка стартового этажа
                 if (!int.TryParse(StartFloorTextBox.Text, out int startFloor) ||
                     startFloor < 1 || startFloor > totalFloors)
                 {
@@ -115,7 +107,6 @@ namespace ElevatorSim
                     return;
                 }
 
-                // Проверка всех людей (если они есть)
                 foreach (var person in _people)
                 {
                     if (person.Weight <= 0 || person.Weight > 200)
@@ -147,7 +138,6 @@ namespace ElevatorSim
                     }
                 }
 
-                // Открываем основное окно (люди могут быть не заданы)
                 var mainData = new MainWindow.InitializationData
                 {
                     TotalFloors = totalFloors,
@@ -165,7 +155,6 @@ namespace ElevatorSim
             }
         }
 
-        // Кнопка "Отмена"
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             var result = MessageBox.Show("Отменить инициализацию и выйти?", "Подтверждение",

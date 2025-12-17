@@ -6,7 +6,7 @@ namespace ElevatorSim
     public partial class CreatePersonWindow : Window
     {
         private readonly int _totalFloors;
-        private readonly object _parentWindow; // Может быть MainWindow или InitializationWindow
+        private readonly object _parentWindow;
         private static int _nextPersonId = 1001;
         private bool _isFromInitialization = false;
 
@@ -16,7 +16,6 @@ namespace ElevatorSim
             _parentWindow = parentWindow;
             _totalFloors = totalFloors;
 
-            // Определяем, из какого окна вызвано
             _isFromInitialization = parentWindow is InitializationWindow;
 
             InitializeFloorComboBoxes();
@@ -24,7 +23,6 @@ namespace ElevatorSim
 
         private void InitializeFloorComboBoxes()
         {
-            // Заполняем комбобоксы этажами
             for (int i = 1; i <= _totalFloors; i++)
             {
                 CurrentFloorComboBox.Items.Add($"Этаж {i}");
@@ -39,7 +37,6 @@ namespace ElevatorSim
         {
             try
             {
-                // Получаем значения
                 int currentFloor = CurrentFloorComboBox.SelectedIndex + 1;
                 int targetFloor = TargetFloorComboBox.SelectedIndex + 1;
 
@@ -67,20 +64,18 @@ namespace ElevatorSim
 
                 if (_isFromInitialization)
                 {
-                    // Если вызвано из окна инициализации
                     if (_parentWindow is InitializationWindow initWindow)
                     {
                         initWindow.AddPersonFromDialog(weight, currentFloor, targetFloor);
-                        MessageBox.Show($"Человек создан на этаже {currentFloor}", "Успех",
-                            MessageBoxButton.OK, MessageBoxImage.Information);
+                        // УБИРАЕМ всплывающее окно сообщения
+                        // MessageBox.Show($"Человек создан на этаже {currentFloor}", "Успех",
+                        //     MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }
                 else
                 {
-                    // Если вызвано из главного окна
                     if (_parentWindow is MainWindow mainWindow)
                     {
-                        // Создаем нового человека
                         var newPerson = new Models.Person
                         {
                             Id = _nextPersonId++,
@@ -88,10 +83,10 @@ namespace ElevatorSim
                             CurrentFloor = currentFloor,
                             StartFloor = currentFloor,
                             TargetFloor = targetFloor,
-                            State = Models.PersonState.Waiting
+                            State = Models.PersonState.Waiting,
+                            CreationTime = DateTime.Now
                         };
 
-                        // Добавляем в основную систему через главное окно
                         mainWindow.AddNewPerson(newPerson);
                     }
                 }
