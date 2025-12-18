@@ -13,12 +13,22 @@ namespace ElevatorSim
         public ReportWindow(int totalTrips, int emptyTrips, double totalWeightMoved, int totalPeopleCreated)
         {
             InitializeComponent();
+
+            // Добавляем обработчик закрытия окна
+            this.Closing += ReportWindow_Closing;
+
             _totalTrips = totalTrips;
             _emptyTrips = emptyTrips;
             _totalWeightMoved = totalWeightMoved;
             _totalPeopleCreated = totalPeopleCreated;
 
             DisplayStatistics();
+        }
+
+        private void ReportWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // Просто завершаем приложение при закрытии окна
+            Application.Current.Shutdown();
         }
 
         private void DisplayStatistics()
@@ -56,6 +66,9 @@ namespace ElevatorSim
 
         private void NewSimulationButton_Click(object sender, RoutedEventArgs e)
         {
+            // Убираем обработчик, чтобы не вызывать Shutdown при программном закрытии
+            this.Closing -= ReportWindow_Closing;
+
             // Открываем окно инициализации
             var initWindow = new InitializationWindow();
             initWindow.Show();
