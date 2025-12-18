@@ -4,7 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Отчет о симуляции" 
         Height="500" 
-        Width="600"
+        Width="640"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
 

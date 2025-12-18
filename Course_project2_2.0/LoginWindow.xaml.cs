@@ -1,31 +1,57 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
+using System.Windows.Input;
 
 namespace ElevatorSim
 {
     public partial class LoginWindow : Window
     {
-        private const string CorrectPassword = "admin"; // Пароль по умолчанию
-
         public LoginWindow()
         {
             InitializeComponent();
+
+            // Устанавливаем фокус на окно для обработки клавиши Enter
+            this.Loaded += (s, e) => this.Focus();
+
+            // Обработка нажатия клавиш
+            this.KeyDown += LoginWindow_KeyDown;
         }
 
-        private void LoginButton_Click(object sender, RoutedEventArgs e)
+        private void LoginWindow_KeyDown(object sender, KeyEventArgs e)
         {
-            string enteredPassword = PasswordBox.Password;
-
-            if (enteredPassword == CorrectPassword)
+            // Если нажата клавиша Enter
+            if (e.Key == Key.Enter || e.Key == Key.Return)
             {
-                // Открываем окно инициализации
-                InitializationWindow initWindow = new InitializationWindow();
-                initWindow.Show();
+                NavigateToInitialization();
+            }
+
+            // Опционально: Escape для выхода
+            if (e.Key == Key.Escape)
+            {
+                Application.Current.Shutdown();
+            }
+        }
+
+        private void EnterButton_Click(object sender, RoutedEventArgs e)
+        {
+            NavigateToInitialization();
+        }
+
+        private void NavigateToInitialization()
+        {
+            try
+            {
+                // Показываем окно инициализации
+                var initializationWindow = new InitializationWindow();
+                initializationWindow.Show();
+
+                // Закрываем текущее окно
                 this.Close();
             }
-            else
+            catch (Exception ex)
             {
-                ErrorMessage.Text = "Неверный пароль!";
-                ErrorMessage.Visibility = Visibility.Visible;
+                MessageBox.Show($"Ошибка при запуске системы: {ex.Message}",
+                    "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

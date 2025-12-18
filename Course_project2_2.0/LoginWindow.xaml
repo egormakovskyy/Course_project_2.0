@@ -2,39 +2,35 @@
 <Window x:Class="ElevatorSim.LoginWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Вход в систему"
-        Height="200"
-        Width="300"
+        Title="Симуляция лифта"
+        Height="250"
+        Width="400"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize">
-	<Grid Margin="10">
-		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="*"/>
-		</Grid.RowDefinitions>
+        ResizeMode="NoResize"
+        WindowStyle="SingleBorderWindow">
 
-		<Label Grid.Row="0"
-               Content="Введите пароль:"
-               FontSize="14"/>
+    <Grid Background="#FF0078D7">
+        <Border Background="White"
+                Margin="30"
+                CornerRadius="10"
+                BorderThickness="2"
+                BorderBrush="#FF0056B3">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
 
-		<PasswordBox x:Name="PasswordBox"
-                     Grid.Row="1"
-                     Margin="0,5"
-                     FontSize="14"/>
+                <TextBlock Text="Система симуляции лифта"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="#FF0078D7"
+                           TextAlignment="Center"
+                           Margin="0,0,0,20"/>
 
-		<TextBlock x:Name="ErrorMessage"
-                   Grid.Row="2"
-                   Foreground="Red"
-                   Margin="0,5"
-                   Visibility="Collapsed"/>
-
-		<Button Grid.Row="3"
-                Content="Войти"
-                Width="80"
-                Height="30"
-                HorizontalAlignment="Center"
-                Click="LoginButton_Click"/>
-	</Grid>
+                <TextBlock Text="Нажмите Enter  чтобы продолжить"
+                           FontSize="16"
+                           Foreground="#333333"
+                           TextAlignment="Center"
+                           Margin="0,0,0,10"/>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>

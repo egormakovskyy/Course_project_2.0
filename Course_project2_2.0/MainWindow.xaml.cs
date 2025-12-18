@@ -338,27 +338,28 @@ namespace ElevatorSim
             _callButtons.Clear();
             _elevatorFloorButtons.Clear();
 
+            // Создаем основную сетку с 3 колонками
             var mainGrid = new Grid();
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.5, GridUnitType.Star) });
 
-            // Левая панель: вызов лифта
+            // Левая панель: вызов лифта - ЗАНИМАЕТ ВСЮ ВЫСОТУ
             _callPanelContainer = new Border
             {
                 BorderBrush = Brushes.Gray,
                 BorderThickness = new Thickness(1, 1, 1, 1),
                 Background = Brushes.WhiteSmoke,
                 CornerRadius = new CornerRadius(8),
-                Margin = new Thickness(10, 10, 10, 10),
-                Padding = new Thickness(5, 5, 5, 5)
+                Margin = new Thickness(10, 10, 5, 10),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Stretch
             };
 
-            var callPanel = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
+            // Grid для организации содержимого панели вызова
+            var callGrid = new Grid();
+            callGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            callGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
             var callPanelTitle = new TextBlock
             {
@@ -366,9 +367,25 @@ namespace ElevatorSim
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 10)
+                Margin = new Thickness(0, 10, 0, 10)
             };
-            callPanel.Children.Add(callPanelTitle);
+            Grid.SetRow(callPanelTitle, 0);
+            callGrid.Children.Add(callPanelTitle);
+
+            // ScrollViewer для прокрутки этажей
+            var callScrollViewer = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Padding = new Thickness(5, 0, 5, 10)
+            };
+            Grid.SetRow(callScrollViewer, 1);
+
+            var callPanel = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
 
             for (int floorNum = _initData.TotalFloors; floorNum >= 1; floorNum--)
             {
@@ -376,11 +393,12 @@ namespace ElevatorSim
                 {
                     BorderBrush = Brushes.LightGray,
                     BorderThickness = new Thickness(1, 1, 1, 1),
-                    Margin = new Thickness(5, 5, 5, 5),
-                    Padding = new Thickness(8, 8, 8, 8),
+                    Margin = new Thickness(5, 3, 5, 3),
+                    Padding = new Thickness(8, 6, 8, 6),
                     CornerRadius = new CornerRadius(5),
                     Background = Brushes.White,
-                    Width = 220
+                    Width = 220,
+                    Height = 40
                 };
 
                 var floorGrid = new Grid();
@@ -390,7 +408,7 @@ namespace ElevatorSim
                 var floorText = new TextBlock
                 {
                     Text = $"Этаж {floorNum}",
-                    FontSize = 14,
+                    FontSize = 13,
                     FontWeight = FontWeights.Normal,
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center
@@ -400,7 +418,7 @@ namespace ElevatorSim
                 {
                     Content = "Вызов",
                     Width = 70,
-                    Height = 28,
+                    Height = 26,
                     Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
                     Foreground = Brushes.Black,
                     BorderBrush = Brushes.Gray,
@@ -423,27 +441,29 @@ namespace ElevatorSim
                 _callButtons[floorNum] = callButton;
             }
 
-            _callPanelContainer.Child = callPanel;
+            callScrollViewer.Content = callPanel;
+            callGrid.Children.Add(callScrollViewer);
+            _callPanelContainer.Child = callGrid;
             Grid.SetColumn(_callPanelContainer, 0);
             mainGrid.Children.Add(_callPanelContainer);
 
-            // Центральная панель: управление лифтом
+            // Центральная панель: управление лифтом - ЗАНИМАЕТ ВСЮ ВЫСОТУ
             _elevatorPanelContainer = new Border
             {
                 BorderBrush = Brushes.DarkGray,
                 BorderThickness = new Thickness(1, 1, 1, 1),
                 Background = Brushes.WhiteSmoke,
                 CornerRadius = new CornerRadius(8),
-                Margin = new Thickness(10, 10, 10, 10),
-                Padding = new Thickness(10, 10, 10, 10)
+                Margin = new Thickness(5, 10, 5, 10),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Stretch
             };
 
-            var centerPanel = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
+            // Grid для организации содержимого панели лифта
+            var elevatorGridContainer = new Grid();
+            elevatorGridContainer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            elevatorGridContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            elevatorGridContainer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var elevatorButtonsTitle = new TextBlock
             {
@@ -451,12 +471,28 @@ namespace ElevatorSim
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 15)
+                Margin = new Thickness(0, 10, 0, 15)
             };
-            centerPanel.Children.Add(elevatorButtonsTitle);
+            Grid.SetRow(elevatorButtonsTitle, 0);
+            elevatorGridContainer.Children.Add(elevatorButtonsTitle);
 
-            // Кнопки этажей (по 3 в ряд)
-            int buttonsPerRow = 3;
+            // ScrollViewer для кнопок этажей лифта
+            var elevatorScrollViewer = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Padding = new Thickness(5)
+            };
+            Grid.SetRow(elevatorScrollViewer, 1);
+
+            var buttonsContainer = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+
+            // Кнопки этажей (по 4 в ряд для лучшего заполнения)
+            int buttonsPerRow = 4;
             int totalRows = (int)Math.Ceiling(_initData.TotalFloors / (double)buttonsPerRow);
 
             for (int row = 0; row < totalRows; row++)
@@ -465,7 +501,7 @@ namespace ElevatorSim
                 {
                     Orientation = Orientation.Horizontal,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 2, 0, 2)
+                    Margin = new Thickness(0, 3, 0, 3)
                 };
 
                 for (int col = 0; col < buttonsPerRow; col++)
@@ -476,8 +512,8 @@ namespace ElevatorSim
                     var button = new Button
                     {
                         Content = $"{floor}",
-                        Width = 45,
-                        Height = 38,
+                        Width = 40,
+                        Height = 35,
                         Margin = new Thickness(3, 3, 3, 3),
                         Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
                         Foreground = Brushes.Black,
@@ -494,27 +530,27 @@ namespace ElevatorSim
 
                 if (rowPanel.Children.Count > 0)
                 {
-                    centerPanel.Children.Add(rowPanel);
+                    buttonsContainer.Children.Add(rowPanel);
                 }
             }
 
-            // Кнопка "ХОД" - ВЫРАВНИВАЕМ ПО ЦЕНТРУ
-            var controlPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 15, 0, 5)
-            };
+            elevatorScrollViewer.Content = buttonsContainer;
+            elevatorGridContainer.Children.Add(elevatorScrollViewer);
 
-            // Добавляем пустой элемент слева для выравнивания
-            controlPanel.Children.Add(new Border { Width = 10 });
+            // Кнопка "ХОД" - ВНИЗУ ПАНЕЛИ
+            var controlPanel = new Border
+            {
+                Margin = new Thickness(0, 15, 0, 15),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            Grid.SetRow(controlPanel, 2);
 
             _startMovementButton = new Button
             {
                 Content = "ХОД",
                 Width = 70,
                 Height = 40,
-                Margin = new Thickness(0, 0, 0, 0), // Убираем лишние отступы
+                Margin = new Thickness(0),
                 Background = new SolidColorBrush(Color.FromRgb(220, 220, 220)),
                 Foreground = Brushes.Black,
                 BorderBrush = Brushes.Gray,
@@ -523,23 +559,33 @@ namespace ElevatorSim
                 FontSize = 14,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            controlPanel.Children.Add(_startMovementButton);
 
-            // Добавляем пустой элемент справа для симметрии
-            controlPanel.Children.Add(new Border { Width = 10 });
+            controlPanel.Child = _startMovementButton;
+            elevatorGridContainer.Children.Add(controlPanel);
 
-            centerPanel.Children.Add(controlPanel);
-
-            _elevatorPanelContainer.Child = centerPanel;
+            _elevatorPanelContainer.Child = elevatorGridContainer;
             Grid.SetColumn(_elevatorPanelContainer, 1);
             mainGrid.Children.Add(_elevatorPanelContainer);
 
-            // Правая панель: информация и логи
-            var rightPanel = new StackPanel
+            // Правая панель: информация и логи - ЗАНИМАЕТ ВСЮ ВЫСОТУ
+            var rightPanel = new Border
             {
-                Margin = new Thickness(10, 10, 10, 10),
-                Orientation = Orientation.Vertical
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(1, 1, 1, 1),
+                Background = Brushes.WhiteSmoke,
+                CornerRadius = new CornerRadius(8),
+                Margin = new Thickness(5, 10, 10, 10),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Stretch
             };
+
+            // Grid для правой панели - Теперь 4 равные строки
+            var rightPanelGrid = new Grid();
+            rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Лифт
+            rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Заголовок "Люди"
+            rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Список людей (50%)
+            rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Заголовок "Лог"
+            rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Лог событий (50%)
 
             // Лифт
             _elevatorVisual = new Border
@@ -549,12 +595,13 @@ namespace ElevatorSim
                 Background = Brushes.LightBlue,
                 Padding = new Thickness(15, 15, 15, 15),
                 CornerRadius = new CornerRadius(8),
-                Margin = new Thickness(0, 0, 0, 10)
+                Margin = new Thickness(10, 10, 10, 10)
             };
+            Grid.SetRow(_elevatorVisual, 0);
 
-            var elevatorGrid = new Grid();
-            elevatorGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            elevatorGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var elevatorInfoGrid = new Grid();
+            elevatorInfoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            elevatorInfoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var elevatorTitle = new TextBlock
             {
@@ -576,26 +623,36 @@ namespace ElevatorSim
 
             Grid.SetRow(elevatorTitle, 0);
             Grid.SetRow(_elevatorPeopleText, 1);
-            elevatorGrid.Children.Add(elevatorTitle);
-            elevatorGrid.Children.Add(_elevatorPeopleText);
+            elevatorInfoGrid.Children.Add(elevatorTitle);
+            elevatorInfoGrid.Children.Add(_elevatorPeopleText);
 
-            _elevatorVisual.Child = elevatorGrid;
-            rightPanel.Children.Add(_elevatorVisual);
+            _elevatorVisual.Child = elevatorInfoGrid;
+            rightPanelGrid.Children.Add(_elevatorVisual);
 
-            // Список людей
+            // Заголовок "Люди в системе"
             var peopleTitle = new TextBlock
             {
                 Text = "Люди в системе:",
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 10, 0, 5)
+                Margin = new Thickness(10, 5, 10, 5)
             };
-            rightPanel.Children.Add(peopleTitle);
+            Grid.SetRow(peopleTitle, 1);
+            rightPanelGrid.Children.Add(peopleTitle);
+
+            // ScrollViewer для списка людей
+            var peopleScrollViewer = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Margin = new Thickness(10, 0, 10, 10)
+            };
+            Grid.SetRow(peopleScrollViewer, 2);
 
             _peopleListView = new ListView
             {
-                Height = 200,
-                Margin = new Thickness(0, 0, 0, 10)
+                VerticalAlignment = VerticalAlignment.Stretch,
+                MinHeight = 150 // Минимальная высота
             };
 
             var gridView = new GridView();
@@ -620,33 +677,51 @@ namespace ElevatorSim
 
             _peopleListView.View = gridView;
             _peopleListView.ItemsSource = _allPeople;
-            rightPanel.Children.Add(_peopleListView);
+            peopleScrollViewer.Content = _peopleListView;
+            rightPanelGrid.Children.Add(peopleScrollViewer);
 
-            // Лог событий
+            // Заголовок "Лог событий"
             var logTitle = new TextBlock
             {
                 Text = "Лог событий:",
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 0, 0, 5)
+                Margin = new Thickness(10, 5, 10, 5)
             };
-            rightPanel.Children.Add(logTitle);
+            Grid.SetRow(logTitle, 3);
+            rightPanelGrid.Children.Add(logTitle);
+
+            // Лог событий - ScrollViewer для прокрутки
+            var logScrollViewer = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Margin = new Thickness(10, 0, 10, 10)
+            };
+            Grid.SetRow(logScrollViewer, 4);
 
             _logTextBox = new TextBox
             {
-                Height = 150,
                 IsReadOnly = true,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 11,
                 Background = new SolidColorBrush(Color.FromRgb(248, 248, 248)),
                 BorderBrush = Brushes.LightGray,
-                BorderThickness = new Thickness(1, 1, 1, 1)
+                BorderThickness = new Thickness(1, 1, 1, 1),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                TextWrapping = TextWrapping.Wrap,
+                MinHeight = 150 // Минимальная высота
             };
-            rightPanel.Children.Add(_logTextBox);
 
+            logScrollViewer.Content = _logTextBox;
+            rightPanelGrid.Children.Add(logScrollViewer);
+
+            rightPanel.Child = rightPanelGrid;
             Grid.SetColumn(rightPanel, 2);
             mainGrid.Children.Add(rightPanel);
+
+            // Добавляем основную сетку в MainContentGrid
             MainContentGrid.Children.Add(mainGrid);
 
             UpdateVisuals();
