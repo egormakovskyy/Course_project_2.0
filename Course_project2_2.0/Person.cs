@@ -86,7 +86,6 @@ namespace ElevatorSim.Models
                 switch (State)
                 {
                     case PersonState.Waiting:
-                        // УБИРАЕМ сообщение о задержке - просто статус
                         return $"Ожидает на этаже {CurrentFloor} → этаж {TargetFloor}";
                     case PersonState.InElevator:
                         return $"В лифте → этаж {TargetFloor}";

@@ -77,7 +77,6 @@
         <!-- Кнопки -->
         <Border Grid.Row="2" Background="#FFF0F0F0" Padding="10">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                <!-- УДЛИНЕНА кнопка -->
                 <Button x:Name="InitializeButton" Content="Инициализировать систему" 
                         Width="200" Height="35" Margin="10" Click="InitializeButton_Click" 
                         FontSize="14" FontWeight="Bold" Background="#FF0078D7" Foreground="White"/>

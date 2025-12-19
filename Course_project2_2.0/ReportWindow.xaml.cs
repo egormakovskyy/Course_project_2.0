@@ -66,17 +66,13 @@ namespace ElevatorSim
 
         private void NewSimulationButton_Click(object sender, RoutedEventArgs e)
         {
-            // Убираем обработчик, чтобы не вызывать Shutdown при программном закрытии
             this.Closing -= ReportWindow_Closing;
 
-            // Открываем окно инициализации
             var initWindow = new InitializationWindow();
             initWindow.Show();
 
-            // Закрываем текущее окно отчета
             this.Close();
 
-            // Закрываем главное окно (MainWindow), если оно открыто
             if (this.Owner != null)
             {
                 this.Owner.Close();
