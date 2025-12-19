@@ -213,7 +213,6 @@ namespace ElevatorSim
         {
             _overloadCooldownTimer.Stop();
             _isOverloadCooldown = false;
-            UpdateStatus("Защита от зацикливания снята.");
         }
 
         // Таймер для управления индикатора перегрузки
@@ -268,8 +267,6 @@ namespace ElevatorSim
             _lastOverloadTime = DateTime.Now;
             _isOverloadCooldown = true;
             _overloadCooldownTimer.Start();
-
-            UpdateStatus($"Защита от зацикливания активирована на этаже {_lastOverloadFloor}.");
         }
 
         // Проверка, разрешен ли вызов с этажа (с учетом задержки 5 секунд для новых людей)

@@ -2,7 +2,7 @@
 <Window x:Class="ElevatorSim.LoginWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Симуляция лифта"
+        Title="Приложение лифт"
         Height="250"
         Width="400"
         WindowStartupLocation="CenterScreen"
