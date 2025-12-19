@@ -182,11 +182,6 @@ namespace ElevatorSim
                     UpdateOverloadIndicator();
                     UpdateVisuals();
                 }
-                else if (!_elevator.IsOverloaded && _showOverloadIndicator)
-                {
-                    // Перегрузка устранена
-                    // Индикатор будет гореть еще 1 секунду
-                }
             }
             else if (e.PropertyName == nameof(_elevator.CurrentWeight))
             {
@@ -309,7 +304,6 @@ namespace ElevatorSim
                 {
                     OverloadIndicator.Background = Brushes.Red;
                     OverloadIndicator.BorderBrush = Brushes.DarkRed;
-                    // УБИРАЕМ надпись "ДА" - оставляем только индикатор
                     OverloadText.Text = "";
                     OverloadText.Foreground = Brushes.Red;
                     OverloadText.FontWeight = FontWeights.Bold;
@@ -318,7 +312,6 @@ namespace ElevatorSim
                 {
                     OverloadIndicator.Background = Brushes.LightGray;
                     OverloadIndicator.BorderBrush = Brushes.DarkGray;
-                    // УБИРАЕМ надпись "Нет"
                     OverloadText.Text = "";
                     OverloadText.Foreground = Brushes.Black;
                     OverloadText.FontWeight = FontWeights.Normal;
@@ -335,13 +328,11 @@ namespace ElevatorSim
             _callButtons.Clear();
             _elevatorFloorButtons.Clear();
 
-            // Создаем основную сетку с 3 колонками
             var mainGrid = new Grid();
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.5, GridUnitType.Star) });
 
-            // Левая панель: вызов лифта - ЗАНИМАЕТ ВСЮ ВЫСОТУ
             _callPanelContainer = new Border
             {
                 BorderBrush = Brushes.Gray,
@@ -488,7 +479,7 @@ namespace ElevatorSim
                 HorizontalAlignment = HorizontalAlignment.Center
             };
 
-            // Кнопки этажей (по 4 в ряд для лучшего заполнения)
+            // Кнопки этажей (по 4 в ряд)
             int buttonsPerRow = 4;
             int totalRows = (int)Math.Ceiling(_initData.TotalFloors / (double)buttonsPerRow);
 
@@ -534,7 +525,6 @@ namespace ElevatorSim
             elevatorScrollViewer.Content = buttonsContainer;
             elevatorGridContainer.Children.Add(elevatorScrollViewer);
 
-            // Кнопка "ХОД" - ВНИЗУ ПАНЕЛИ
             var controlPanel = new Border
             {
                 Margin = new Thickness(0, 15, 0, 15),
@@ -564,7 +554,6 @@ namespace ElevatorSim
             Grid.SetColumn(_elevatorPanelContainer, 1);
             mainGrid.Children.Add(_elevatorPanelContainer);
 
-            // Правая панель: информация и логи - ЗАНИМАЕТ ВСЮ ВЫСОТУ
             var rightPanel = new Border
             {
                 BorderBrush = Brushes.Gray,
@@ -576,7 +565,6 @@ namespace ElevatorSim
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
 
-            // Grid для правой панели - Теперь 4 равные строки
             var rightPanelGrid = new Grid();
             rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Лифт
             rightPanelGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Заголовок "Люди"
@@ -626,7 +614,6 @@ namespace ElevatorSim
             _elevatorVisual.Child = elevatorInfoGrid;
             rightPanelGrid.Children.Add(_elevatorVisual);
 
-            // Заголовок "Люди в системе"
             var peopleTitle = new TextBlock
             {
                 Text = "Люди в системе:",
@@ -649,7 +636,7 @@ namespace ElevatorSim
             _peopleListView = new ListView
             {
                 VerticalAlignment = VerticalAlignment.Stretch,
-                MinHeight = 150 // Минимальная высота
+                MinHeight = 150 
             };
 
             var gridView = new GridView();
@@ -708,7 +695,7 @@ namespace ElevatorSim
                 BorderThickness = new Thickness(1, 1, 1, 1),
                 VerticalAlignment = VerticalAlignment.Stretch,
                 TextWrapping = TextWrapping.Wrap,
-                MinHeight = 150 // Минимальная высота
+                MinHeight = 150 
             };
 
             logScrollViewer.Content = _logTextBox;
@@ -718,7 +705,6 @@ namespace ElevatorSim
             Grid.SetColumn(rightPanel, 2);
             mainGrid.Children.Add(rightPanel);
 
-            // Добавляем основную сетку в MainContentGrid
             MainContentGrid.Children.Add(mainGrid);
 
             UpdateVisuals();
@@ -787,7 +773,6 @@ namespace ElevatorSim
             });
         }
 
-        // НАЖАТИЕ кнопки ХОД (красный цвет)
         private void PressStartMovementButton()
         {
             Dispatcher.Invoke(() =>
@@ -799,7 +784,6 @@ namespace ElevatorSim
             });
         }
 
-        // ОТЖАТИЕ кнопки ХОД (возврат к исходному состоянию)
         private void ReleaseStartMovementButton()
         {
             Dispatcher.Invoke(() =>
@@ -810,7 +794,6 @@ namespace ElevatorSim
             });
         }
 
-        // Сортировка целей
         private void SortTargetFloors()
         {
             if (_elevator.TargetFloors.Count == 0) return;
@@ -829,7 +812,6 @@ namespace ElevatorSim
             }
         }
 
-        // Обновление визуализации
         private void UpdateVisuals()
         {
             Dispatcher.Invoke(() =>
@@ -846,7 +828,6 @@ namespace ElevatorSim
                         floorContainer.Background = new SolidColorBrush(Color.FromRgb(220, 255, 220));
                         floorText.FontWeight = FontWeights.Bold;
 
-                        // Отображаем перегрузку - теперь просто "!" вместо "ПЕРЕГРУЗКА!"
                         if (_showOverloadIndicator || _elevator.State == ElevatorState.Overloaded)
                         {
                             floorText.Text = $"Этаж {floorNumber} [!]";
@@ -979,7 +960,6 @@ namespace ElevatorSim
                 _allPeople.Add(person);
                 _totalPeopleCreated++;
 
-                // Запоминаем время создания человека
                 _personCreationTimes[person.Id] = DateTime.Now;
 
                 UpdateStatus($"Создан новый человек ID {person.Id} на этаже {person.CurrentFloor}");
@@ -1000,7 +980,6 @@ namespace ElevatorSim
                 foreach (var person in peopleToRemove)
                 {
                     _allPeople.Remove(person);
-                    // Удаляем из словаря времени создания
                     _personCreationTimes.Remove(person.Id);
                     AddLog($"Человек ID {person.Id} удален из системы");
                 }
@@ -1079,7 +1058,7 @@ namespace ElevatorSim
             }
         }
 
-        // Состояние "Ожидание" (теперь "Стоит с закрытыми дверьми")
+        // Состояние "Стоит с закрытыми дверьми"
         private void ProcessIdleState()
         {
             if (_elevator.IsOverloaded)
@@ -1214,7 +1193,7 @@ namespace ElevatorSim
             }
         }
 
-        // Состояние "Двери открыты" - ИСПРАВЛЕННАЯ ВЕРСИЯ
+        // Состояние "Двери открыты"
         private void ProcessDoorsOpenState()
         {
             // Высадка людей по целевому этажу
@@ -1235,8 +1214,6 @@ namespace ElevatorSim
             ReleaseCallButton(_elevator.CurrentFloor);
             _elevator.RemoveTargetFloor(_elevator.CurrentFloor);
 
-            // ПОСАДКА ЛЮДЕЙ - с защитой от зацикливания и проверкой задержки
-            // Проверяем, не действует ли защита от зацикливания на этом этаже
             if (_isOverloadCooldown && _lastOverloadFloor == _elevator.CurrentFloor)
             {
                 UpdateStatus($"Защита от зацикливания активна на этаже {_elevator.CurrentFloor}. Посадка временно запрещена.");

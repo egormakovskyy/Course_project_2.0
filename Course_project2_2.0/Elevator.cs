@@ -142,7 +142,7 @@ namespace ElevatorSim.Models
 
     public enum ElevatorState
     {
-        Idle,               // Стоит с закрытыми дверьми (заменили Ожидание)
+        Idle,               // Стоит с закрытыми дверьми 
         MovingUp,           // Движение вверх
         MovingDown,         // Движение вниз
         DoorsOpen,          // Стоит с открытыми дверьми
